@@ -1,0 +1,11 @@
+node_modules/
+.npm-cache/
+.sites-runtime/
+*.tar.gz
+*.log
+.env
+.env.*
+!.env.example
+*.zip
+Thumbs.db
+.DS_Store

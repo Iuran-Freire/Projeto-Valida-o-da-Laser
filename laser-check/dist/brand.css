@@ -1,0 +1,21 @@
+/* Logo oficial: https://inventuspower.com/wp-content/uploads/inventus-power-logo.svg */
+:root{--teal:#b85c00;--ink:#34383d;--line:#dedfe1;color:#34383d;background:#f4f4f5}
+header{background:#fff;border-bottom:4px solid #f99b1f;height:104px;color:#34383d;gap:20px}
+.brand{gap:26px;color:#34383d;letter-spacing:0;min-width:0}
+.inventus-logo{display:block;width:218px;height:auto;flex-shrink:0}
+.brand-product{border-left:1px solid #d5d7da;padding-left:25px;font-size:1rem;font-weight:700;letter-spacing:1.5px;line-height:1.4}
+.brand-product small{color:#73777d;font-size:.625rem;font-weight:500;letter-spacing:1.3px;margin-top:4px}
+.connection{color:#676c72}.eyebrow{color:#a65400}.rule{border-color:#f99b1f;color:#73777d}.rule strong{color:#34383d}
+h1,h2{color:#34383d}.step{background:#fff0dc;color:#a65400}
+section{border-radius:10px;box-shadow:0 3px 14px #34383d05}.panel-title{padding-bottom:16px;border-bottom:1px solid #ededee}
+.viewfinder{background-color:#292c31;background-image:linear-gradient(#ffffff06 1px,transparent 1px),linear-gradient(90deg,#ffffff06 1px,transparent 1px)}
+#camera-empty{color:#f99b1f}#camera-empty h3{color:#fff}#camera-empty p{color:#c4c6ca}.camera-tag{color:#d6d7da;background:#202227c9}
+button,.button{color:#3d4147;border-color:#d2d4d7}button:hover,.button:hover{background:#fff4e5;border-color:#e3b47a}
+.primary{background:#f99b1f;border-color:#f99b1f;color:#292c31;font-weight:700}.primary:hover{background:#e98a0e;border-color:#e98a0e;color:#22252a}
+.text-button{color:#a65400}.text-button:hover{background:#fff4e5}
+button:focus-visible,.button:focus-within,a:focus-visible{outline-color:#c7740b}textarea:focus{outline-color:#d48c2e}textarea{color:#34383d;border-color:#d2d4d7}
+input[type=checkbox],progress{accent-color:#b85c00}.extracted strong{color:#34383d}.extracted,.help,p{color:#686e75}
+.field-note,.mini-label{color:#737980}th{background:#f1f2f3;color:#656b73}.count{background:#fff0dc;color:#985006}
+footer{color:#767b82}dialog{color:#34383d;border-color:#d5d7da}dialog::backdrop{background:#24272b88}dd{color:#666d74}
+@media(max-width:760px){header{height:auto;min-height:92px;padding:17px 20px;gap:12px;flex-wrap:wrap}.brand{gap:17px}.inventus-logo{width:166px}.brand-product{padding-left:16px;font-size:.75rem;letter-spacing:.8px}.brand-product small{font-size:.55rem;max-width:110px;letter-spacing:.6px}.header-actions:has(button:not([hidden])){margin-left:auto}.panel-title{gap:7px}}
+@media(max-width:365px){.brand{gap:12px}.inventus-logo{width:145px}.brand-product{padding-left:12px}}

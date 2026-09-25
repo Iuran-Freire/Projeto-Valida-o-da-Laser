@@ -1,0 +1,10 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {extractCode,extractPrint,compare,csv} from '../src/compare.mjs';
+const serial='AB123456789012';
+test('Extrai série do formato real da foto sem incluir o código da peça',()=>{assert.equal(extractCode('GH44-03247A+R37L9QGE3Y2IPA').serial,'R37L9QGE3Y2IPA');assert.equal(extractCode('GH44-03247A+R37L9QGE3Y2IPA+OTHER').serial,null);});
+test('Compara os 14 finais preservando zeros e letras',()=>{assert.equal(compare('PREFIX'+serial,'NÚMERO DE SÉRIE: PREFIX'+serial).status,'COINCIDE');assert.equal(extractPrint('NUMERO DE SERIE: 00123456789012').serial,'00123456789012');});
+test('Não confunde O/0 nem I/1',()=>{assert.equal(compare('AO123456789012','NUMERO DE SERIE: A0123456789012').status,'DIVERGENTE');assert.equal(compare('AI123456789012','NUMERO DE SERIE: A1123456789012').status,'DIVERGENTE');});
+test('Leitura incompleta, rótulo ausente e vazios ficam pendentes',()=>{for(const [a,b]of [['',''],[serial,'NUMERO DE SERIE: 123'],[serial,serial]])assert.equal(compare(a,b).status,'PENDENTE');});
+test('Não usa outros números do adaptador',()=>assert.equal(extractPrint('CNPJ: 01234567890123\nNUMERO DE SERIE: '+serial+'\nENTRADA: 100240').serial,serial));
+test('Vários seriais diferentes nunca coincidem por seleção arbitrária',()=>assert.equal(extractPrint('NUMERO DE SERIE: '+serial+'\nNUMERO DE SERIE: ZZ123456789012').serial,null));
+test('Série identificada em JSON, URL e GS1',()=>{for(const input of [JSON.stringify({serial:serial}),`https://example.com/?sn=${serial}`,`(21)${serial}`])assert.equal(extractCode(input).serial,serial);assert.equal(extractCode('{"serial":12345678901234}').serial,null);assert.equal(extractCode('https://example.com/unrelated/'+serial).serial,null);});
+test('CSV preserva original, aspas, novas linhas e neutraliza fórmulas',()=>{const result=csv([{id:'id',date:'2026-09-24T12:00:00Z',qr:'=HYPERLINK("x")',originalOCR:'linha 1\nlinha 2'}]);assert.ok(result.startsWith('\ufeff'));assert.ok(result.includes('"\'=HYPERLINK(""x"")"'));assert.ok(result.includes('"linha 1\nlinha 2"'));});
