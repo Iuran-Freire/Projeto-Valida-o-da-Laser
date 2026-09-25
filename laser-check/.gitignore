@@ -9,3 +9,6 @@ node_modules/
 *.zip
 Thumbs.db
 .DS_Store
+data/
+.wrangler/
+.dev.vars
