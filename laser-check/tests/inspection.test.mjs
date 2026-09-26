@@ -21,5 +21,21 @@ test('turno informado valida o código 2D mesmo quando código e tampografia coi
  assert.match(mismatch.reason,/Código 2D: 1º turno exige G na posição 7; lido H/);
  assert.equal(inspect('GH44-03247A+R37L9QAE3Y2IPA','NUMERO DE SERIE:R37L9QAE3Y2IPA',true,false,'G').status,'DIVERGENTE');
  assert.equal(inspect(qr,'',false,false,'G').status,'DIVERGENTE');
- assert.equal(inspect('OUTRO+R37L9QHG2P2IPA',print,true,false,'H').status,'PENDENTE');
+ assert.equal(inspect('OUTRO+R37L9QHG2P2IPA',print,true,false,'H').status,'DIVERGENTE');
+ assert.equal(inspect('{"serial":"R37L9QHG2P2IPA"}',print,true,false,'H').status,'PENDENTE');
+});
+test('SEC CODE errado é divergente mesmo se as séries coincidirem ou faltar OCR',()=>{
+ const qr='GH44-03246A+R37L9QHG2P2IPA',print='NUMERO DE SERIE:R37L9QHG2P2IPA';
+ for(const ocr of [print,'']){
+  const result=inspect(qr,ocr,true,false,'H');
+  assert.equal(result.status,'DIVERGENTE');
+  assert.match(result.reason,/SEC CODE.*esperado GH44-03247A; lido GH44-03246A/);
+ }
+});
+test('fixos da série no próprio QR são divergentes antes de ler a tampografia',()=>{
+ for(const [serial,position] of [['X37L9QHG2P2IPA',1],['R37L9QHG2P21PA',12],['R37L9QHG2P2IPB',14]]){
+  const result=inspect('GH44-03247A+'+serial,'',false,false,'H');
+  assert.equal(result.status,'DIVERGENTE');
+  assert.match(result.reason,new RegExp(`Código 2D: posição ${position} `));
+ }
 });

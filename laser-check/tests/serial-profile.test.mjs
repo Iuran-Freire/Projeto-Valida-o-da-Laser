@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {validateSerialPositions,comparePositions,checkCodeShift,isValidRecordShift,YEAR_BY_CODE,MONTH_CODES,DAY_CODES,COUNTER_ALPHABET} from '../src/serial-profile.mjs';
+import {validateSerialPositions,comparePositions,checkCodeShift,checkSecCode,isValidRecordShift,YEAR_BY_CODE,MONTH_CODES,DAY_CODES,COUNTER_ALPHABET} from '../src/serial-profile.mjs';
 import {compare} from '../src/compare.mjs';
 import {inspect,selectOCR} from '../src/inspection.mjs';
 
@@ -22,6 +22,11 @@ test('I fixo não pode ser confundido com 1',()=>{
   assert.equal(inspect(code,wrong,false).status,'PENDENTE');
   assert.equal(inspect(code,wrong,true,true).status,'DIVERGENTE');
   assert.equal(inspect('GH44-03247A+R37L9QHG2Z21PA',wrong,true).status,'DIVERGENTE');
+});
+test('SEC CODE BLACK é fixo antes do sinal de mais',()=>{
+  assert.equal(checkSecCode('GH44-03247A+R37L9QHG2Z2IPA').status,'match');
+  assert.deepEqual(checkSecCode('GH44-03246A+R37L9QHG2Z2IPA'),{status:'mismatch',expected:'GH44-03247A',actual:'GH44-03246A'});
+  assert.equal(checkSecCode('GH44-03247A+R37L9QHG2Z2IPA+EXTRA').status,'match');
 });
 test('valores variáveis de dia, turno e contador não são fixados no exemplo',()=>{
   for(const serial of ['R37L9RGGR22IPA','R37L9RGGR32IPA','R37L9RGGR42IPA','R37L9QHG2Z2IPA','R37L9QHG4S2IPA'])assert.equal(validateSerialPositions(serial).valid,true);

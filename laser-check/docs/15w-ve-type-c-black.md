@@ -4,6 +4,8 @@ Escopo confirmado pelo inspetor: usar somente o SEC CODE `GH44-03247A` (BLACK). 
 
 O código 2D tem o formato `GH44-03247A+` seguido de 14 caracteres. A tampografia traz a mesma série após `:`. As duas séries devem coincidir posição por posição.
 
+O SEC CODE `GH44-03247A` antes de `+` é fixo para o BLACK. Um SEC CODE diferente é **DIVERGENTE** mesmo quando as séries de 14 caracteres são iguais. Os caracteres fixos da própria série (`R37` e `IPA`) também são conferidos no código 2D assim que ele é lido, mesmo se a tampografia ainda não tiver leitura.
+
 | Posição | Significado | Regra |
 | --- | --- | --- |
 | 1–3 | Família, cliente, classificação | `R37` fixo |

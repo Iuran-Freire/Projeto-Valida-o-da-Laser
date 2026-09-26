@@ -9,6 +9,13 @@ export const COUNTER_ALPHABET='0123456789ABCDEFGHJKLMNPQRSTVWXYZ';
 const fixed={0:'R',1:'3',2:'7',11:'I',12:'P',13:'A'};
 const meanings=['Família','Código do cliente','Classificação do produto','Ano de fabricação','Mês de fabricação','Dia de fabricação','Turno','Contador','Contador','Contador','Versão de produção','Código do fornecedor','Código do fornecedor','Código do vendedor'];
 export function usesProfile(code){return typeof code==='string'&&code.trim().startsWith(PROFILE_PART+'+');}
+export function checkSecCode(code){
+  const text=typeof code==='string'?code.trim():'';
+  if(!text)return {status:'unread',expected:PROFILE_PART,actual:null};
+  const match=text.match(/^([A-Za-z0-9-]+)\+/);
+  if(!match)return {status:'unsupported',expected:PROFILE_PART,actual:null};
+  return {status:match[1]===PROFILE_PART?'match':'mismatch',expected:PROFILE_PART,actual:match[1]};
+}
 export function checkCodeShift(code,serial,shift){
   if(!isShiftCode(shift))return {status:'missing',expected:null,actual:null};
   if(!serial)return {status:'unread',expected:shift,actual:null};

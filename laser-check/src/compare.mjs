@@ -1,5 +1,5 @@
 import {comparePositions,usesProfile} from './serial-profile.mjs';
-export const RULE='serial-positions-gh44-v3';
+export const RULE='serial-positions-gh44-v4';
 const label=/(?:N[ÚUÜO]MERO\s*DE\s*S[ÉE]RIE|SERIAL(?:\s*(?:NUMBER|NO))?|S\/N|SN)\s*[:=]\s*([A-Za-z0-9]+)/gi;
 const tail=value=>typeof value==='string'&&/^[A-Za-z0-9]{14,}$/.test(value)?value.slice(-14):null;
 const exact=value=>typeof value==='string'&&/^[A-Za-z0-9]{14}$/.test(value)?value:null;
