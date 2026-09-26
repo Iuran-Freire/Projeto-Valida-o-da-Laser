@@ -15,5 +15,11 @@
 			"database_name": "valida-laser",
 			"database_id": "108f9ff9-c0a5-4339-906b-1f952e463c25"
 		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "PHOTOS",
+			"bucket_name": "valida-laser-fotos"
+		}
 	]
 }
