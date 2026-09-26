@@ -4,7 +4,7 @@ Escopo confirmado pelo inspetor: usar somente o SEC CODE `GH44-03247A` (BLACK). 
 
 O código 2D tem o formato `GH44-03247A+` seguido de 14 caracteres. A tampografia traz a mesma série após `:`. As duas séries devem coincidir posição por posição.
 
-O SEC CODE `GH44-03247A` antes de `+` é fixo para o BLACK. Um SEC CODE diferente é **DIVERGENTE** mesmo quando as séries de 14 caracteres são iguais. Os caracteres fixos da própria série (`R37` e `IPA`) também são conferidos no código 2D assim que ele é lido, mesmo se a tampografia ainda não tiver leitura.
+O SEC CODE `GH44-03247A` antes de `+` é fixo para o BLACK. Um SEC CODE diferente é **DIVERGENTE** mesmo quando as séries de 14 caracteres são iguais. Os caracteres fixos da própria série (`R37` e `2IPA`) também são conferidos no código 2D assim que ele é lido, mesmo se a tampografia ainda não tiver leitura.
 
 | Posição | Significado | Regra |
 | --- | --- | --- |
@@ -14,8 +14,8 @@ O SEC CODE `GH44-03247A` antes de `+` é fixo para o BLACK. Um SEC CODE diferent
 | 6 | Dia de fabricação | 1–9=1–9, A–H=10–17, J–N=18–22, P–T=23–27, V–Y=28–31 |
 | 7 | Turno | Operação atual: G=1º, H=2º, J=3º turno |
 | 8–10 | Contador | 001–ZZZ em base 33, sem I, O ou U |
-| 11 | Versão de produção | 0=desenvolvimento, 1=produção, 2 em diante=alterações; não é texto fixo |
+| 11 | Versão de produção | `2` fixo na operação atual |
 | 12–13 | Fornecedor | `IP` fixo |
 | 14 | Código do vendedor | `A` fixo |
 
-O último trecho fixo é `IPA`, com **I** maiúsculo. A versão na posição 11 pode variar. O turno selecionado pelo inspetor deve corresponder exatamente à letra G, H ou J na posição 7 do código 2D. A indicação da arte para a data impressa no rótulo é dia, mês, ano; a conferência visual dessa data fora da série ainda não faz parte da leitura.
+O último trecho fixo é `2IPA`, com **I** maiúsculo. O turno selecionado pelo inspetor deve corresponder exatamente à letra G, H ou J na posição 7 do código 2D. A indicação da arte para a data impressa no rótulo é dia, mês, ano; a conferência visual dessa data fora da série ainda não faz parte da leitura.

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {validateSerialPositions,comparePositions,checkCodeShift,checkSecCode,isValidRecordShift,YEAR_BY_CODE,MONTH_CODES,DAY_CODES,COUNTER_ALPHABET} from '../src/serial-profile.mjs';
+import {validateSerialPositions,comparePositions,checkCodeShift,checkSecCode,isValidRecordShift,YEAR_BY_CODE,MONTH_CODES,DAY_CODES,COUNTER_ALPHABET,MODEL_PROFILES} from '../src/serial-profile.mjs';
 import {compare} from '../src/compare.mjs';
 import {inspect,selectOCR} from '../src/inspection.mjs';
 
@@ -40,7 +40,7 @@ test('tabela BLACK interpreta ano, mês e dia em suas posições',()=>{
   assert.equal(DAY_CODES[17],'J');
   assert.equal(DAY_CODES[27],'V');
   assert.equal(DAY_CODES[30],'Y');
-  const serial='R37LCJH0011IPA';
+  const serial='R37LCJH0012IPA';
   const result=validateSerialPositions(serial);
   assert.equal(result.valid,true);
   assert.equal(result.positions[3].decoded,'2026');
@@ -48,26 +48,44 @@ test('tabela BLACK interpreta ano, mês e dia em suas posições',()=>{
   assert.equal(result.positions[5].decoded,'dia 18');
   assert.equal(result.positions[6].decoded,'2º turno');
 });
-test('conta 001–ZZZ, aceita versão variável e mantém IPA fixo',()=>{
+test('conta 001–ZZZ e exige 2IPA fixo nos dois modelos',()=>{
   assert.equal(COUNTER_ALPHABET.length,33);
-  for(const version of '0123456789')assert.equal(validateSerialPositions(`R37L9QGZZZ${version}IPA`).valid,true);
-  assert.equal(validateSerialPositions('R37L9QG0011IPA').valid,true);
-  for(const counter of ['000','I01','O01','U01'])assert.equal(validateSerialPositions(`R37L9QG${counter}1IPA`).valid,false);
+  assert.equal(validateSerialPositions('R37L9QGZZZ2IPA').valid,true);
+  assert.equal(validateSerialPositions('R37L9QG0012IPA').valid,true);
+  for(const version of '013456789')assert.equal(validateSerialPositions(`R37L9QGZZZ${version}IPA`).positions[10].valid,false);
+  for(const counter of ['000','I01','O01','U01'])assert.equal(validateSerialPositions(`R37L9QG${counter}2IPA`).valid,false);
   assert.equal(validateSerialPositions('R37L9QG00111PA').positions[11].valid,false);
 });
 test('operação atual usa exatamente G, H e J nos três turnos',()=>{
   for(const turno of 'GHJ'){
-    const serial=`R37L9Q${turno}0011IPA`;
+    const serial=`R37L9Q${turno}0012IPA`;
     assert.equal(validateSerialPositions(serial).valid,true);
     assert.equal(checkCodeShift('GH44-03247A+'+serial,serial,turno).status,'match');
     assert.equal(isValidRecordShift({shift:turno,status:'COINCIDE',qr:'GH44-03247A+'+serial}),true);
   }
   for(const letter of 'ABCDEFK'){
-    const serial=`R37L9Q${letter}0011IPA`;
+    const serial=`R37L9Q${letter}0012IPA`;
     assert.equal(validateSerialPositions(serial).positions[6].valid,false);
     assert.equal(checkCodeShift('GH44-03247A+'+serial,serial,'G').status,'mismatch');
     assert.equal(isValidRecordShift({shift:'G',status:'COINCIDE',qr:'GH44-03247A+'+serial}),false);
   }
+});
+test('15W VE usa SEC CODE próprio, G/H/J e termina em 2IPA',()=>{
+ const serial='R37L8KH9K92IPA',qr='GH44-03086A+'+serial,print='NUMERO DE SERIE:'+serial;
+ assert.equal(MODEL_PROFILES['15w-ve'].secCode,'GH44-03086A');
+ assert.equal(checkSecCode(qr,'15w-ve').status,'match');
+ assert.equal(checkSecCode(qr,'type-c').status,'mismatch');
+ assert.equal(validateSerialPositions(serial,'15w-ve').valid,true);
+ assert.equal(validateSerialPositions(serial,'15w-ve').positions[3].decoded,'2026');
+ assert.equal(validateSerialPositions(serial,'15w-ve').positions[4].decoded,'mês 8');
+ assert.equal(validateSerialPositions(serial,'15w-ve').positions[5].decoded,'dia 19');
+ assert.equal(inspect(qr,print,true,false,'H','15w-ve').status,'COINCIDE');
+ assert.equal(inspect(qr,print,true,false,'H','type-c').status,'DIVERGENTE');
+ assert.equal(inspect(qr,print,true,false,'G','15w-ve').status,'DIVERGENTE');
+ assert.equal(isValidRecordShift({model:'15w-ve',shift:'H',status:'COINCIDE',qr}),true);
+ assert.equal(isValidRecordShift({model:'type-c',shift:'H',status:'COINCIDE',qr}),false);
+ assert.equal(isValidRecordShift({model:'unknown',shift:'H',status:'PENDENTE',qr}),false);
+ for(const bad of ['R37L8KH9K91IPA','R37L8KH9K921PA','R37L8KA9K92IPA'])assert.equal(validateSerialPositions(bad,'15w-ve').valid,false);
 });
 test('OCR prioriza um candidato que obedece aos caracteres fixos, sem usar a série do código',()=>{
   const attempts=[{text:'NUMERO DESERIE:R37L9QHG2Z21PA',confidence:99},{text,confidence:91}];

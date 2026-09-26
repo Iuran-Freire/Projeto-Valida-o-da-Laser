@@ -47,3 +47,10 @@ test('foto JPEG fica vinculada ao registro e disponível no histórico compartil
  const history=await (await call('/api/records?after=0')).json();assert.equal(history.records.find(item=>item.id===record.id).photoPresent,true);
  assert.equal((await call('/api/photos/123e4567-e89b-42d3-a456-426614174999')).status,404);
 });
+test('servidor mantém modelo no registro e rejeita coincidência do modelo errado',async()=>{
+ const record={id:'123e4567-e89b-42d3-a456-426614174003',date:'2026-09-26T14:00:00Z',inspector:'Bia',model:'15w-ve',shift:'H',status:'COINCIDE',qr:'GH44-03086A+R37L8KH9K92IPA'};
+ assert.equal((await call('/api/records','POST',{...record,model:'unknown'})).status,400);
+ assert.equal((await call('/api/records','POST',{...record,model:'type-c'})).status,400);
+ assert.equal((await call('/api/records','POST',{...record,shift:'G'})).status,400);
+ const saved=await call('/api/records','POST',record);assert.equal(saved.status,200);assert.equal((await saved.json()).record.model,'15w-ve');
+});

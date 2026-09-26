@@ -6,6 +6,12 @@ test('OCR incerto nunca aprova mesmo se o texto coincidir',()=>{const o=selectOC
 test('Duas leituras diferentes ficam pendentes e preservam a candidata',()=>{const o=selectOCR([{text,confidence:95},{text:'NUMERO DE SERIE: AZ123456789012',confidence:90}]);const result=inspect('AB123456789012',o.text,o.reliable);assert.equal(result.status,'PENDENTE');assert.equal(result.print.serial,'AB123456789012');});
 test('Séries exibidas iguais com OCR incerto explicam a pendência sem alegar divergência entre as fontes',()=>{const result=inspect('GH44-03247A+R37L9QHG2P2IPA','NUMERO DE SERIE:R37L9QHG2P2IPA',false);assert.equal(result.status,'PENDENTE');assert.equal(result.rawComparison,'COINCIDE');assert.match(result.reason,/séries exibidas coincidem/i);assert.equal(inspect('GH44-03247A+R37L9QHG2P2IPA','NUMERO DE SERIE:R37L9QHG2P2IPA',false,true).status,'COINCIDE');});
 test('Região sem posição usa foto inteira',()=>assert.deepEqual(nearbyRegion(null,640,480),{x:0,y:0,w:640,h:480}));
+test('15W VE procura tampografia acima do Data Matrix; TYPE C mantém recorte antigo',()=>{
+ const position={topLeft:{x:200,y:400},topRight:{x:300,y:400},bottomLeft:{x:200,y:500},bottomRight:{x:300,y:500}};
+ const ve=nearbyRegion(position,1000,1000,'15w-ve'),typeC=nearbyRegion(position,1000,1000,'type-c');
+ assert.ok(ve.y<400&&ve.y+ve.h<500&&ve.w>200);
+ assert.ok(typeC.y>500);
+});
 test('OCR exibe a linha completa quando o recorte ampliado lê a mesma série',()=>{
  const full='NUMERO DE SERIE: AB123456789012';
  const selected=selectOCR([{text:'E:AB123456789012',confidence:98},{text:full,confidence:95}],false);

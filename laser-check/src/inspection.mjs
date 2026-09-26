@@ -1,21 +1,22 @@
 import {compare,extractPrint} from './compare.mjs';
-import {validateSerialPositions,checkCodeShift,checkSecCode,usesProfile,SHIFT_LABELS} from './serial-profile.mjs';
+import {validateSerialPositions,checkCodeShift,checkSecCode,usesProfile,SHIFT_LABELS,DEFAULT_MODEL,getModelProfile} from './serial-profile.mjs';
 // OCR candidates are selected without consulting the barcode's expected serial.
 export function selectOCR(attempts,profileEnabled=false){
-  const score=attempt=>{const serial=extractPrint(attempt.text).serial;return [Number(!!serial),Number(profileEnabled&&!!serial&&validateSerialPositions(serial).valid),Math.min(attempt.text.length,100),attempt.confidence]};
+  const model=typeof profileEnabled==='string'?profileEnabled:DEFAULT_MODEL;
+  const score=attempt=>{const serial=extractPrint(attempt.text).serial;return [Number(!!serial),Number(profileEnabled&&!!serial&&validateSerialPositions(serial,model).valid),Math.min(attempt.text.length,100),attempt.confidence]};
   const ranked=[...attempts].sort((a,b)=>{const x=score(a),y=score(b);return y[0]-x[0]||y[1]-x[1]||y[2]-x[2]||y[3]-x[3]});
   const best=ranked[0]||{text:'',confidence:0};
   const serial=extractPrint(best.text).serial;
   const reliable=!!serial&&attempts.length>=2&&attempts.every(a=>extractPrint(a.text).serial===serial&&a.confidence>=80);
   return {...best,reliable};
 }
-export function inspect(qr,ocr,reliable,visuallyConfirmed=false,shift=''){
-  const result=compare(qr,ocr);
-  const partCheck=checkSecCode(qr);
+export function inspect(qr,ocr,reliable,visuallyConfirmed=false,shift='',model=DEFAULT_MODEL){
+  const result=compare(qr,ocr,model);
+  const partCheck=checkSecCode(qr,model);
   const partMismatch=partCheck.status==='mismatch';
-  const codeCheck=usesProfile(qr)&&result.code.serial?validateSerialPositions(result.code.serial):null;
+  const codeCheck=usesProfile(qr,model)&&result.code.serial?validateSerialPositions(result.code.serial,model):null;
   const invalidCode=!!codeCheck&&!codeCheck.valid;
-  const shiftCheck=checkCodeShift(qr,result.code.serial,shift);
+  const shiftCheck=checkCodeShift(qr,result.code.serial,shift,model);
   const shiftMismatch=shiftCheck.status==='mismatch';
   const shiftUnsupported=shiftCheck.status==='unsupported';
   const ambiguousI=!!(result.profile?.codeValid&&result.code.serial?.[11]==='I'&&result.print.serial?.[11]==='1');
@@ -31,12 +32,18 @@ export function inspect(qr,ocr,reliable,visuallyConfirmed=false,shift=''){
   const baseReason=!result.code.serial?'Série de 14 caracteres após + não identificada no código 2D.':!result.print.serial?'Série de 14 caracteres após : não identificada na tampografia.':!reliable&&!visuallyConfirmed?`${swapIssue}${iIssue}${profileIssue?profileIssue+'. ':''}${result.status==='COINCIDE'?'As séries exibidas coincidem. O OCR não confirmou a série com confiança em todas as tentativas.':'As séries exibidas são diferentes e o OCR não confirmou a leitura com confiança.'} Confira a série na peça e marque a conferência manual.`:swapIssue+iIssue+((profileIssue||firstDifference)?profileIssue||`Diferença na posição ${firstDifference.position} (${firstDifference.meaning}): código ${firstDifference.code}, tampografia ${firstDifference.print}.`:'');
   return {...result,status:partMismatch||shiftMismatch||invalidCode?'DIVERGENTE':pending?'PENDENTE':profileIssue?'DIVERGENTE':result.status,reason:partIssue+shiftIssue+codeOnlyIssue+baseReason,rawComparison:result.status,ambiguousI,shiftCheck,partCheck};
 }
-export function nearbyRegion(position,width,height){
+export function nearbyRegion(position,width,height,model=DEFAULT_MODEL){
   if(!position)return {x:0,y:0,w:width,h:height};
   const points=Object.values(position).filter(p=>Number.isFinite(p?.x)&&Number.isFinite(p?.y));
   if(points.length<4)return {x:0,y:0,w:width,h:height};
   const xs=points.map(p=>p.x),ys=points.map(p=>p.y),left=Math.min(...xs),top=Math.min(...ys),right=Math.max(...xs),bottom=Math.max(...ys);
   const size=Math.max(right-left,bottom-top);
+  if(getModelProfile(model).layout==='above'){
+    // 15W VE: a linha NÚMERO DE SÉRIE está imediatamente acima do Data Matrix.
+    const x=Math.max(0,Math.floor(left-.2*size)),y=Math.max(0,Math.floor(top-.55*size));
+    const w=Math.min(width-x,Math.ceil(3.5*size)),h=Math.min(height-y,Math.ceil(top+.08*size-y));
+    return w>40&&h>8?{x,y,w,h}:{x:0,y:0,w:width,h:height};
+  }
   // Adapter layout supplied by the user: serial line below and to the left of the matrix.
   // Only geometry is used here; the barcode payload never supplies OCR characters.
   const x=Math.max(0,Math.floor(left-4.5*size)),y=Math.max(0,Math.floor(bottom+.28*size));
