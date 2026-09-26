@@ -18,8 +18,8 @@ test('turno informado valida o código 2D mesmo quando código e tampografia coi
  const mismatch=inspect(qr,print,true,false,'G');
  assert.equal(mismatch.status,'DIVERGENTE');
  assert.equal(mismatch.shiftCheck.actual,'H');
- assert.match(mismatch.reason,/Código 2D: 1º turno exige A, D ou G na posição 7; lido H/);
- assert.equal(inspect('GH44-03247A+R37L9QAE3Y2IPA','NUMERO DE SERIE:R37L9QAE3Y2IPA',true,false,'G').status,'COINCIDE');
+ assert.match(mismatch.reason,/Código 2D: 1º turno exige G na posição 7; lido H/);
+ assert.equal(inspect('GH44-03247A+R37L9QAE3Y2IPA','NUMERO DE SERIE:R37L9QAE3Y2IPA',true,false,'G').status,'DIVERGENTE');
  assert.equal(inspect(qr,'',false,false,'G').status,'DIVERGENTE');
  assert.equal(inspect('OUTRO+R37L9QHG2P2IPA',print,true,false,'H').status,'PENDENTE');
 });

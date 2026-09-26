@@ -50,18 +50,19 @@ test('conta 001–ZZZ, aceita versão variável e mantém IPA fixo',()=>{
   for(const counter of ['000','I01','O01','U01'])assert.equal(validateSerialPositions(`R37L9QG${counter}1IPA`).valid,false);
   assert.equal(validateSerialPositions('R37L9QG00111PA').positions[11].valid,false);
 });
-test('a linha não interfere: A/D/G, B/E/H e C/F/J representam os turnos',()=>{
-  const example='R37T11A0011IPA';
-  assert.equal(validateSerialPositions(example).valid,true);
-  assert.equal(checkCodeShift('GH44-03247A+'+example,example,'G').status,'match');
-  for(const [turno,letters] of [['G','ADG'],['H','BEH'],['J','CFJ']])for(const letter of letters){
-    const serial=`R37L9Q${letter}0011IPA`;
+test('operação atual usa exatamente G, H e J nos três turnos',()=>{
+  for(const turno of 'GHJ'){
+    const serial=`R37L9Q${turno}0011IPA`;
     assert.equal(validateSerialPositions(serial).valid,true);
     assert.equal(checkCodeShift('GH44-03247A+'+serial,serial,turno).status,'match');
     assert.equal(isValidRecordShift({shift:turno,status:'COINCIDE',qr:'GH44-03247A+'+serial}),true);
   }
-  assert.equal(checkCodeShift('GH44-03247A+R37L9QA0011IPA','R37L9QA0011IPA','H').status,'mismatch');
-  assert.equal(validateSerialPositions('R37L9QK0011IPA').positions[6].valid,false);
+  for(const letter of 'ABCDEFK'){
+    const serial=`R37L9Q${letter}0011IPA`;
+    assert.equal(validateSerialPositions(serial).positions[6].valid,false);
+    assert.equal(checkCodeShift('GH44-03247A+'+serial,serial,'G').status,'mismatch');
+    assert.equal(isValidRecordShift({shift:'G',status:'COINCIDE',qr:'GH44-03247A+'+serial}),false);
+  }
 });
 test('OCR prioriza um candidato que obedece aos caracteres fixos, sem usar a série do código',()=>{
   const attempts=[{text:'NUMERO DESERIE:R37L9QHG2Z21PA',confidence:99},{text,confidence:91}];
