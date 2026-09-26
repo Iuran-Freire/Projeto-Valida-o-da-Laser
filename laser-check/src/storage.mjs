@@ -5,4 +5,16 @@ export async function saveRecordWithPhoto(record,photo){await transaction(await 
 export async function getPhoto(id){const database=await db();return new Promise((resolve,reject)=>{const request=database.transaction('photos','readonly').objectStore('photos').get(id);request.onsuccess=()=>resolve(request.result?.blob||null);request.onerror=()=>reject(request.error);});}
 export async function deletePhoto(id){await transaction(await db(),['photos'],'readwrite',tx=>tx.objectStore('photos').delete(id));}
 export async function saveRecord(record){const database=await db();await new Promise((resolve,reject)=>{const tx=database.transaction('comparisons','readwrite');tx.objectStore('comparisons').put(record);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
+export async function removeSyncedRecordsNotIn(ids){
+  await transaction(await db(),['comparisons'],'readwrite',tx=>{
+    const store=tx.objectStore('comparisons');
+    const cursor=store.openCursor();
+    cursor.onsuccess=()=>{
+      const row=cursor.result;
+      if(!row)return;
+      if(row.value.syncState!=='pending'&&!ids.has(row.value.id))row.delete();
+      row.continue();
+    };
+  });
+}
 export async function listRecords(){const database=await db();return new Promise((resolve,reject)=>{const request=database.transaction('comparisons','readonly').objectStore('comparisons').getAll();request.onsuccess=()=>resolve(request.result.sort((a,b)=>b.date.localeCompare(a.date)));request.onerror=()=>reject(request.error);});}

@@ -1,4 +1,4 @@
-import {saveRecord,listRecords,getPhoto,deletePhoto} from './storage.mjs';
+import {saveRecord,listRecords,getPhoto,deletePhoto,removeSyncedRecordsNotIn} from './storage.mjs';
 
 const endpoint=new URL('api/',new URL('./',location.href));
 async function request(path,options={}){
@@ -21,13 +21,14 @@ export async function syncRecords(){
     await saveRecord(result.record);
     if(record.photoPresent)await deletePhoto(record.id);
   }
-  local=await listRecords();
-  let cursor=Math.max(0,...local.map(item=>item.seq||0));
+  let cursor=0;
   let more=true;
+  const serverIds=new Set();
   while(more){
     const page=await request('records?after='+cursor);
-    for(const record of page.records){await saveRecord(record);cursor=Math.max(cursor,record.seq);}
+    for(const record of page.records){await saveRecord(record);serverIds.add(record.id);cursor=Math.max(cursor,record.seq);}
     more=page.hasMore;
   }
+  await removeSyncedRecordsNotIn(serverIds);
   return listRecords();
 }
