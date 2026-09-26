@@ -1,0 +1,17 @@
+{
+  "name": "valida-laser-teste",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-09-25",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "valida-laser-teste",
+      "database_id": "a9d715f1-531a-4645-b5ab-aca323a7d971"
+    }
+  ]
+}

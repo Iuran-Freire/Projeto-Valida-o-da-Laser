@@ -18,7 +18,7 @@ No Chrome/Edge compatível, use “Instalar aplicativo” quando disponível. No
 - Letras e números são preservados, inclusive maiúsculas/minúsculas, zeros iniciais e diferenças O/0, I/1, B/8.
 - A tampografia usa exatamente 14 caracteres alfanuméricos após `:`. O rótulo NÚMERO DE SÉRIE pode ter pequenas falhas de OCR; sem rótulo reconhecido, deve haver apenas um campo após `:`.
 - No formato da peça mostrado na planilha, o código 2D contém o código da peça, `+` e exatamente 14 caracteres de série (exemplo: `GH44-03247A+R37L9RGGR22IPA`). O conteúdo completo tem 26 caracteres. Outros formatos explícitos de série, como JSON, URL e GS1 (21), continuam legíveis, mas ficam pendentes porque não permitem validar o turno desta peça.
-- Na série `R37L9RGGR22IPA`, a planilha divide as posições em `R37` (texto fixo), `L9R` (ano, mês e dia de fabricação), `G` (turno/linha), `GR2` (contador) e `2IPA` (texto fixo). O aplicativo compara a série completa entre as duas fontes e valida também as posições fixas `R37` e `2IPA`, além do código de turno/linha (`G`, `H` ou `J`). Ano, mês, dia e contador são campos variáveis alfanuméricos; a planilha não fornece a tabela de conversão dos códigos de data nem os limites do contador. No exemplo `R37L9QHG2Z2IPA`, `H` representa a 2ª linha, e `I` na posição 12 é obrigatório, não o algarismo `1`.
+- No 15W VE TYPE C BLACK, a série tem `R37` fixo, ano/mês/dia codificados nas posições 4–6, turno na posição 7, contador em base 33 nas posições 8–10, versão de produção variável na posição 11 e `IPA` fixo no final. A operação atual usa `G`, `H` e `J` para o 1º, 2º e 3º turnos; o `I` da posição 12 não pode ser trocado por `1`. As tabelas e os limites de cada campo estão em `docs/15w-ve-type-c-black.md`.
 - O turno informado pelo inspetor valida diretamente a posição 7 do código 2D: 1º turno = `G`, 2º = `H`, 3º = `J`. Se a letra não corresponder, o registro é DIVERGENTE mesmo que código 2D e tampografia tenham séries iguais ou que o OCR esteja incompleto.
 - Se houver vários códigos na foto, a leitura é bloqueada. Séries diferentes no texto também ficam pendentes.
 - Os resultados são COINCIDE, DIVERGENTE e PENDENTE. COINCIDE não substitui validação do processo de produção.
@@ -41,6 +41,8 @@ Abra http://localhost:4173. O servidor local usa SQLite em `data/inspections.sql
 ## Cloudflare
 
 O projeto inclui `worker.mjs`, `wrangler.jsonc` e a migração D1 em `migrations/`. Use Wrangler autenticado na conta Cloudflare da empresa:
+
+Para testar a branch antes de publicá-la no aplicativo principal, use `https://valida-laser-teste.iuranhumberto99.workers.dev/`. O arquivo `wrangler.preview.jsonc` publica um Worker separado, ligado ao banco D1 `valida-laser-teste`; seus registros não aparecem no histórico de produção. Gere `dist` com `npm run build` e execute `wrangler deploy --config wrangler.preview.jsonc` para atualizar apenas esse ambiente.
 
 1. Crie um banco D1 chamado `valida-laser` e atualize `database_id` em `wrangler.jsonc` com o ID retornado.
 2. Aplique `migrations/0001_inspections.sql` ao banco remoto.
