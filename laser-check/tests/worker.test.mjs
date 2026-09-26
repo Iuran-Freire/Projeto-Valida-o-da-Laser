@@ -22,3 +22,14 @@ test('nome do inspetor identifica o registro compartilhado sem login',async()=>{
   assert.equal(history.records[0].syncState,'synced');
   assert.equal((await (await call('/api/records?after=1')).json()).records.length,0);
 });
+test('turno é compartilhado e o servidor rejeita coincidência com letra incorreta',async()=>{
+ const record={id:'123e4567-e89b-42d3-a456-426614174001',date:'2026-09-26T12:00:00Z',inspector:'Ana',shift:'H',status:'COINCIDE',qr:'GH44-03247A+R37L9QHG2P2IPA'};
+ assert.equal((await call('/api/records','POST',{...record,shift:'X'})).status,400);
+ assert.equal((await call('/api/records','POST',{...record,shift:'toString'})).status,400);
+ assert.equal((await call('/api/records','POST',{...record,shift:'G'})).status,400);
+ const saved=await call('/api/records','POST',record);
+ assert.equal(saved.status,200);
+ assert.equal((await saved.json()).record.shift,'H');
+ const history=await (await call('/api/records?after=0')).json();
+ assert.equal(history.records.find(item=>item.id===record.id).shift,'H');
+});

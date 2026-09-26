@@ -4,7 +4,7 @@ PWA para ler QR Code e Data Matrix, reconhecer a tampografia por OCR e comparar 
 
 ## Usar
 
-1. Abra o endereço HTTPS do aplicativo, informe seu nome e toque em Salvar nome. A inspeção pode começar antes da sincronização; para usar sem internet depois, aguarde “Pronto para uso offline” no primeiro acesso.
+1. Abra o endereço HTTPS do aplicativo, informe seu nome, selecione o turno e toque em Salvar nome e turno. O turno fica guardado no aparelho para as próximas peças, mas pode ser alterado no início de outro turno. A inspeção pode começar antes da sincronização.
 2. Use Abrir câmera no app ou Usar câmera do celular e capture uma peça por vez. Inclua o código e a linha NÚMERO DE SÉRIE. Se a imagem estiver borrada, afaste o aparelho; a câmera nativa pode oferecer toque para focar e modo macro. Se ela não devolver a foto ao navegador, use Escolher foto para selecionar a imagem salva.
 3. A foto recebe automaticamente uma leitura rápida de duas etapas. Se precisar, toque em Repetir leitura detalhada para executar quatro leituras com o mesmo modelo: duas da região detectada e duas do trecho da série ampliado. Para isolar o texto, selecione a linha inteira na imagem e toque em Ler seleção. O modo detalhado reutiliza o modelo da leitura inicial e processa quatro imagens em sequência, liberando cada imagem entre as etapas para limitar a memória no celular.
 4. Confira o texto da tampografia com a peça. Correções manuais são registradas separadamente do texto original do OCR. Se o OCR ler 1 no lugar do I fixo da posição 12, o inspetor pode confirmar o caractere na peça e corrigir apenas essa posição, mesmo quando houver outros defeitos; as demais divergências continuam destacadas.
@@ -17,11 +17,12 @@ No Chrome/Edge compatível, use “Instalar aplicativo” quando disponível. No
 
 - Letras e números são preservados, inclusive maiúsculas/minúsculas, zeros iniciais e diferenças O/0, I/1, B/8.
 - A tampografia usa exatamente 14 caracteres alfanuméricos após `:`. O rótulo NÚMERO DE SÉRIE pode ter pequenas falhas de OCR; sem rótulo reconhecido, deve haver apenas um campo após `:`.
-- No formato da peça mostrado na planilha, o código 2D contém o código da peça, `+` e exatamente 14 caracteres de série (exemplo: `GH44-03247A+R37L9RGGR22IPA`). O conteúdo completo tem 26 caracteres. Outros formatos explícitos de série, como JSON, URL e GS1 (21), continuam aceitos.
+- No formato da peça mostrado na planilha, o código 2D contém o código da peça, `+` e exatamente 14 caracteres de série (exemplo: `GH44-03247A+R37L9RGGR22IPA`). O conteúdo completo tem 26 caracteres. Outros formatos explícitos de série, como JSON, URL e GS1 (21), continuam legíveis, mas ficam pendentes porque não permitem validar o turno desta peça.
 - Na série `R37L9RGGR22IPA`, a planilha divide as posições em `R37` (texto fixo), `L9R` (ano, mês e dia de fabricação), `G` (turno/linha), `GR2` (contador) e `2IPA` (texto fixo). O aplicativo compara a série completa entre as duas fontes e valida também as posições fixas `R37` e `2IPA`, além do código de turno/linha (`G`, `H` ou `J`). Ano, mês, dia e contador são campos variáveis alfanuméricos; a planilha não fornece a tabela de conversão dos códigos de data nem os limites do contador. No exemplo `R37L9QHG2Z2IPA`, `H` representa a 2ª linha, e `I` na posição 12 é obrigatório, não o algarismo `1`.
+- O turno informado pelo inspetor valida diretamente a posição 7 do código 2D: 1º turno = `G`, 2º = `H`, 3º = `J`. Se a letra não corresponder, o registro é DIVERGENTE mesmo que código 2D e tampografia tenham séries iguais ou que o OCR esteja incompleto.
 - Se houver vários códigos na foto, a leitura é bloqueada. Séries diferentes no texto também ficam pendentes.
 - Os resultados são COINCIDE, DIVERGENTE e PENDENTE. COINCIDE não substitui validação do processo de produção.
-- Guarda UUID, data UTC, conteúdo original e utilizado, séries extraídas, origem, formato, confiança OCR, indicação de edição, confirmação visual e versão da regra. Fotos não são persistidas.
+- Guarda UUID, data UTC, inspetor, turno informado, conteúdo original e utilizado, séries extraídas, origem, formato, confiança OCR, indicação de edição, confirmação visual e versão da regra. Fotos não são persistidas.
 - O servidor central reúne os registros de texto de todos os inspetores. O nome é informado livremente no aparelho e não confirma a identidade da pessoa. O histórico fica acessível a quem tiver o link do aplicativo.
 
 ## Desenvolvimento

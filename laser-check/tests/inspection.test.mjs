@@ -12,3 +12,13 @@ test('OCR exibe a linha completa quando o recorte ampliado lê a mesma série',(
  assert.equal(selected.text,full);
  assert.equal(selected.reliable,true);
 });
+test('turno informado valida o código 2D mesmo quando código e tampografia coincidem',()=>{
+ const qr='GH44-03247A+R37L9QHG2P2IPA',print='NUMERO DE SERIE:R37L9QHG2P2IPA';
+ assert.equal(inspect(qr,print,true,false,'H').status,'COINCIDE');
+ const mismatch=inspect(qr,print,true,false,'G');
+ assert.equal(mismatch.status,'DIVERGENTE');
+ assert.equal(mismatch.shiftCheck.actual,'H');
+ assert.match(mismatch.reason,/Código 2D: 1º turno exige G na posição 7; lido H/);
+ assert.equal(inspect(qr,'',false,false,'G').status,'DIVERGENTE');
+ assert.equal(inspect('OUTRO+R37L9QHG2P2IPA',print,true,false,'H').status,'PENDENTE');
+});

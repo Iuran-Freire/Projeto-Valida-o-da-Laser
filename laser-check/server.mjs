@@ -2,6 +2,7 @@ import http from 'node:http';
 import {readFile,mkdir} from 'node:fs/promises';
 import {resolve,extname,sep} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
+import {isValidRecordShift} from './src/serial-profile.mjs';
 
 const root=resolve('dist'),dataDir=resolve(process.env.LASER_DATA_DIR||'data');
 await mkdir(dataDir,{recursive:true});
@@ -24,6 +25,7 @@ async function api(req,res,path,url){
   if(path==='/api/records'&&req.method==='POST'){
     const record=await readJSON(req),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
     if(!inspector||inspector.length>80||!/^[0-9a-f-]{36}$/i.test(record.id||'')||!Number.isFinite(Date.parse(record.date))||!['COINCIDE','DIVERGENTE','PENDENTE'].includes(record.status))return json(res,400,{error:'Registro ou nome do inspetor inválido.'});
+    if(!isValidRecordShift(record))return json(res,400,{error:'Turno inválido ou incompatível com o código 2D.'});
     const found=existing.get(record.id);if(found)return json(res,200,{record:{...JSON.parse(found.payload),seq:found.seq,syncState:'synced'}});
     const stored={...record,inspector};delete stored.seq;delete stored.syncState;
     insert.run(stored.id,stored.date,stored.inspector,JSON.stringify(stored));

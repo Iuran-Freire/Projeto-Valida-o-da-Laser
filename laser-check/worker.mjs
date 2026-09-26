@@ -1,3 +1,4 @@
+import {isValidRecordShift} from './src/serial-profile.mjs';
 const response=(status,data)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
 async function readJSON(request){const body=await request.text();if(body.length>262144)throw new Error('Corpo muito grande');return JSON.parse(body);}
 export default {async fetch(request,env){
@@ -14,6 +15,7 @@ export default {async fetch(request,env){
     if(path==='/api/records'&&request.method==='POST'){
       const record=await readJSON(request),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
       if(!inspector||inspector.length>80||!/^[0-9a-f-]{36}$/i.test(record.id||'')||!Number.isFinite(Date.parse(record.date))||!['COINCIDE','DIVERGENTE','PENDENTE'].includes(record.status))return response(400,{error:'Registro ou nome do inspetor inválido.'});
+      if(!isValidRecordShift(record))return response(400,{error:'Turno inválido ou incompatível com o código 2D.'});
       const stored={...record,inspector};delete stored.seq;delete stored.syncState;
       await env.DB.prepare('INSERT OR IGNORE INTO inspections (id,date,inspector,payload) VALUES (?,?,?,?)').bind(stored.id,stored.date,stored.inspector,JSON.stringify(stored)).run();
       const row=await env.DB.prepare('SELECT seq,payload FROM inspections WHERE id=?').bind(stored.id).first();
