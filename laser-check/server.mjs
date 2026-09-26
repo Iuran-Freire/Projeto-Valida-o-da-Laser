@@ -1,11 +1,13 @@
 import http from 'node:http';
-import {readFile,mkdir} from 'node:fs/promises';
+import {readFile,mkdir,writeFile,unlink} from 'node:fs/promises';
+import {Readable} from 'node:stream';
 import {resolve,extname,sep} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {isValidRecordShift} from './src/serial-profile.mjs';
 
 const root=resolve('dist'),dataDir=resolve(process.env.LASER_DATA_DIR||'data');
 await mkdir(dataDir,{recursive:true});
+const photoDir=resolve(dataDir,'photos');await mkdir(photoDir,{recursive:true});
 const db=new DatabaseSync(resolve(dataDir,'inspections.sqlite'));
 db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS inspections (seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,date TEXT NOT NULL,inspector TEXT NOT NULL,payload TEXT NOT NULL)');
 const insert=db.prepare('INSERT INTO inspections (id,date,inspector,payload) VALUES (?,?,?,?)');
@@ -14,6 +16,15 @@ const list=db.prepare('SELECT seq,payload FROM inspections WHERE seq>? ORDER BY 
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.wasm':'application/wasm','.webmanifest':'application/manifest+json','.gz':'application/gzip'};
 function json(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));}
 function readJSON(req){return new Promise((resolve,reject)=>{let body='';req.on('data',chunk=>{body+=chunk;if(body.length>262144){reject(new Error('Corpo muito grande'));req.destroy();}});req.on('end',()=>{try{resolve(JSON.parse(body));}catch{reject(new Error('JSON inválido'));}});req.on('error',reject);});}
+async function readUpload(req){
+ if(!req.headers['content-type']?.toLowerCase().startsWith('multipart/form-data'))return {record:await readJSON(req),photo:null};
+ if(Number(req.headers['content-length'])>2300000)throw new Error('Foto maior que 2 MB.');
+ const web=new Request('http://localhost/api/records',{method:'POST',headers:{'Content-Type':req.headers['content-type']},body:Readable.toWeb(req),duplex:'half'});
+ const form=await web.formData(),raw=form.get('record'),photo=form.get('photo');
+ if(typeof raw!=='string'||raw.length>262144||!(photo instanceof File)||photo.type!=='image/jpeg'||photo.size<100||photo.size>2000000)throw new Error('Registro ou foto inválida.');
+ const bytes=Buffer.from(await photo.arrayBuffer());if(bytes[0]!==0xff||bytes[1]!==0xd8||bytes.at(-2)!==0xff||bytes.at(-1)!==0xd9)throw new Error('Arquivo de foto inválido.');
+ return {record:JSON.parse(raw),photo:bytes};
+}
 function sameOrigin(req){try{const origin=new URL(req.headers.origin);return origin.host===req.headers.host&&['http:','https:'].includes(origin.protocol);}catch{return false;}}
 async function api(req,res,path,url){
   if(req.method==='POST'&&!sameOrigin(req))return json(res,403,{error:'Origem inválida'});
@@ -22,13 +33,20 @@ async function api(req,res,path,url){
     const rows=list.all(after),page=rows.slice(0,200);
     return json(res,200,{records:page.map(row=>({...JSON.parse(row.payload),seq:row.seq,syncState:'synced'})),hasMore:rows.length>200});
   }
+  if(path.startsWith('/api/photos/')&&req.method==='GET'){
+    const id=path.slice('/api/photos/'.length);if(!/^[0-9a-f-]{36}$/i.test(id))return json(res,404,{error:'Foto não encontrada.'});
+    const row=existing.get(id);if(!row||!JSON.parse(row.payload).photoPresent)return json(res,404,{error:'Foto não encontrada.'});
+    try{const bytes=await readFile(resolve(photoDir,id+'.jpg'));res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'});res.end(bytes);}catch{return json(res,404,{error:'Foto não encontrada.'});}return;
+  }
   if(path==='/api/records'&&req.method==='POST'){
-    const record=await readJSON(req),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
+    const {record,photo}=await readUpload(req),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
     if(!inspector||inspector.length>80||!/^[0-9a-f-]{36}$/i.test(record.id||'')||!Number.isFinite(Date.parse(record.date))||!['COINCIDE','DIVERGENTE','PENDENTE'].includes(record.status))return json(res,400,{error:'Registro ou nome do inspetor inválido.'});
     if(!isValidRecordShift(record))return json(res,400,{error:'Turno inválido ou incompatível com o código 2D.'});
+    if(Boolean(photo)!==Boolean(record.photoPresent))return json(res,400,{error:'Cada novo registro deve incluir sua foto.'});
     const found=existing.get(record.id);if(found)return json(res,200,{record:{...JSON.parse(found.payload),seq:found.seq,syncState:'synced'}});
-    const stored={...record,inspector};delete stored.seq;delete stored.syncState;
-    insert.run(stored.id,stored.date,stored.inspector,JSON.stringify(stored));
+    const stored={...record,inspector,photoPresent:Boolean(photo)};delete stored.seq;delete stored.syncState;
+    if(photo)await writeFile(resolve(photoDir,stored.id+'.jpg'),photo);
+    try{insert.run(stored.id,stored.date,stored.inspector,JSON.stringify(stored));}catch(error){if(photo)await unlink(resolve(photoDir,stored.id+'.jpg')).catch(()=>{});throw error;}
     const row=existing.get(stored.id);return json(res,201,{record:{...stored,seq:row.seq,syncState:'synced'}});
   }
   return json(res,404,{error:'Rota não encontrada'});

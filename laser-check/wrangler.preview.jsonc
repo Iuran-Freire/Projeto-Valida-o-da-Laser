@@ -13,5 +13,11 @@
       "database_name": "valida-laser-teste",
       "database_id": "a9d715f1-531a-4645-b5ab-aca323a7d971"
     }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "PHOTOS",
+      "id": "aceeeb4e31344e2fa6c15e31abf6771d"
+    }
   ]
 }

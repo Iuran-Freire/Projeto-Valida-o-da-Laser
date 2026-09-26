@@ -1,4 +1,4 @@
-import {saveRecord,listRecords} from './storage.mjs';
+import {saveRecord,listRecords,getPhoto,deletePhoto} from './storage.mjs';
 
 const endpoint=new URL('api/',new URL('./',location.href));
 async function request(path,options={}){
@@ -10,8 +10,16 @@ async function request(path,options={}){
 export async function syncRecords(){
   let local=await listRecords();
   for(const record of local.filter(item=>item.syncState==='pending')){
-    const result=await request('records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(record)});
+    let options={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(record)};
+    if(record.photoPresent){
+      const photo=await getPhoto(record.id);
+      if(!photo)throw new Error('Foto local não encontrada para o registro '+record.id);
+      const form=new FormData();form.set('record',JSON.stringify(record));form.set('photo',photo,'inspecao.jpg');
+      options={method:'POST',body:form};
+    }
+    const result=await request('records',options);
     await saveRecord(result.record);
+    if(record.photoPresent)await deletePhoto(record.id);
   }
   local=await listRecords();
   let cursor=Math.max(0,...local.map(item=>item.seq||0));
