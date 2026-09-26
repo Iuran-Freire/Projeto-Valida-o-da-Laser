@@ -1,6 +1,6 @@
 # Valida Laser
 
-PWA para ler QR Code e Data Matrix, reconhecer a tampografia por OCR e comparar a série de 14 caracteres após `+` no código com a série após `:` na tampografia. A leitura da imagem é processada no navegador. A foto JPEG de cada nova inspeção é salva com o registro e sincronizada entre inspetores: os dados de texto ficam em D1 e as fotos do ambiente de teste em Workers KV. Sem conexão, registro e foto aguardam no aparelho até a sincronização. O histórico pode ser exportado em CSV UTF-8 com separador ponto e vírgula; o CSV não inclui as fotos.
+PWA para ler QR Code e Data Matrix, reconhecer a tampografia por OCR e comparar a série de 14 caracteres após `+` no código com a série após `:` na tampografia. A leitura da imagem é processada no navegador. A foto JPEG de cada nova inspeção é salva com o registro e sincronizada entre inspetores: os dados de texto ficam em D1 e as fotos do ambiente de teste em R2. Sem conexão, registro e foto aguardam no aparelho até a sincronização. O histórico pode ser exportado em CSV UTF-8 com separador ponto e vírgula; o CSV não inclui as fotos.
 
 ## Usar
 
@@ -9,7 +9,7 @@ PWA para ler QR Code e Data Matrix, reconhecer a tampografia por OCR e comparar 
 3. A foto recebe automaticamente uma leitura rápida de duas etapas. Se precisar, toque em Repetir leitura detalhada para executar quatro leituras com o mesmo modelo: duas da região detectada e duas do trecho da série ampliado. Para isolar o texto, selecione a linha inteira na imagem e toque em Ler seleção. O modo detalhado reutiliza o modelo da leitura inicial e processa quatro imagens em sequência, liberando cada imagem entre as etapas para limitar a memória no celular.
 4. Confira o texto da tampografia com a peça. Correções manuais são registradas separadamente do texto original do OCR. Se o OCR ler 1 no lugar do I fixo da posição 12, o inspetor pode confirmar o caractere na peça e corrigir apenas essa posição, mesmo quando houver outros defeitos; as demais divergências continuam destacadas.
 5. O aplicativo compara e registra automaticamente a captura. Leituras incompletas ou OCR inconsistente ficam PENDENTES, com o texto reconhecido preservado nos detalhes.
-6. Confira o estado de sincronização antes de limpar os dados do navegador. Registros e fotos ainda aguardando envio existem somente naquele aparelho. Abra a foto no histórico com Ver foto. Exporte o CSV para fazer backup dos dados de texto; as fotos precisam de backup separado no Cloudflare KV.
+6. Confira o estado de sincronização antes de limpar os dados do navegador. Registros e fotos ainda aguardando envio existem somente naquele aparelho. Abra a foto no histórico com Ver foto. Exporte o CSV para fazer backup dos dados de texto; as fotos precisam de backup separado no Cloudflare R2.
 
 No Chrome/Edge compatível, use “Instalar aplicativo” quando disponível. No iPhone, abra no Safari e use Compartilhar → Adicionar à Tela de Início. A câmera precisa de HTTPS (ou localhost para desenvolvimento). O uso offline depende do primeiro carregamento completo, da permissão de armazenamento e da retenção do cache pelo navegador. A instalação e a câmera devem ser verificadas no aparelho de destino.
 
@@ -42,7 +42,7 @@ Abra http://localhost:4173. O servidor local usa SQLite em `data/inspections.sql
 
 O projeto inclui `worker.mjs`, `wrangler.jsonc` e a migração D1 em `migrations/`. Use Wrangler autenticado na conta Cloudflare da empresa:
 
-Para testar a branch antes de publicá-la no aplicativo principal, use `https://valida-laser-teste.iuranhumberto99.workers.dev/`. O arquivo `wrangler.preview.jsonc` publica um Worker separado, ligado ao banco D1 `valida-laser-teste` e ao namespace KV `valida-laser-teste-fotos`; seus registros e fotos não aparecem na produção. Gere `dist` com `npm run build` e execute `wrangler deploy --config wrangler.preview.jsonc` para atualizar apenas esse ambiente. O ambiente de produção ainda precisa de um armazenamento de fotos configurado antes de receber esta versão.
+Para testar a branch antes de publicá-la no aplicativo principal, use `https://valida-laser-teste.iuranhumberto99.workers.dev/`. O arquivo `wrangler.preview.jsonc` publica um Worker separado, ligado ao banco D1 `valida-laser-teste` e ao bucket R2 `valida-laser-teste-fotos`; seus registros e fotos não aparecem na produção. O namespace KV anterior permanece ligado somente para migrar, durante a leitura, eventuais fotos antigas. Gere `dist` com `npm run build` e execute `wrangler deploy --config wrangler.preview.jsonc` para atualizar apenas esse ambiente. O ambiente de produção ainda precisa de um bucket R2 próprio antes de receber esta versão.
 
 1. Crie um banco D1 chamado `valida-laser` e atualize `database_id` em `wrangler.jsonc` com o ID retornado.
 2. Aplique `migrations/0001_inspections.sql` ao banco remoto.

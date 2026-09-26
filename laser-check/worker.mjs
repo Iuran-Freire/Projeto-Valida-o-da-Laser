@@ -29,9 +29,13 @@ export default {async fetch(request,env){
       const row=await env.DB.prepare('SELECT seq,payload FROM inspections WHERE id=?').bind(id).first();
       if(!row||!JSON.parse(row.payload).photoPresent)return response(404,{error:'Foto não encontrada.'});
       if(!env.PHOTOS)return response(503,{error:'Armazenamento de fotos indisponível.'});
-      const image=await env.PHOTOS.get(photoKey(id),'arrayBuffer');
+      let image=await env.PHOTOS.get(photoKey(id));
+      if(!image&&env.LEGACY_PHOTOS){
+        const legacy=await env.LEGACY_PHOTOS.get(photoKey(id),'arrayBuffer');
+        if(legacy){await env.PHOTOS.put(photoKey(id),legacy);image=await env.PHOTOS.get(photoKey(id));}
+      }
       if(!image)return response(404,{error:'Foto ainda não disponível. Tente novamente.'});
-      return new Response(image,{headers:{'Content-Type':'image/jpeg','Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'}});
+      return new Response(await image.arrayBuffer(),{headers:{'Content-Type':'image/jpeg','Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'}});
     }
     if(path==='/api/records'&&request.method==='POST'){
       const {record,photo}=await readUpload(request),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');

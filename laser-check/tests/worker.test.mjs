@@ -5,8 +5,8 @@ import worker from '../worker.mjs';
 
 const db=new DatabaseSync(':memory:');
 db.exec('CREATE TABLE inspections (seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,date TEXT NOT NULL,inspector TEXT NOT NULL,payload TEXT NOT NULL)');
-const photos=new Map();
-const env={DB:{prepare(sql){return {bind(...values){return {all:async()=>({results:db.prepare(sql).all(...values)}),first:async()=>db.prepare(sql).get(...values),run:async()=>db.prepare(sql).run(...values)};}};}},PHOTOS:{put:async(key,value)=>photos.set(key,value),get:async key=>photos.get(key)||null,delete:async key=>photos.delete(key)}};
+const photos=new Map(),legacyPhotos=new Map();
+const env={DB:{prepare(sql){return {bind(...values){return {all:async()=>({results:db.prepare(sql).all(...values)}),first:async()=>db.prepare(sql).get(...values),run:async()=>db.prepare(sql).run(...values)};}};}},PHOTOS:{put:async(key,value)=>photos.set(key,value),get:async key=>photos.has(key)?{arrayBuffer:async()=>photos.get(key)}:null,delete:async key=>photos.delete(key)},LEGACY_PHOTOS:{get:async key=>legacyPhotos.get(key)||null}};
 const origin='https://laser.example.com';
 function call(path,method='GET',body){return worker.fetch(new Request(origin+path,{method,headers:body?{'Content-Type':'application/json','Origin':origin}:{},body:body?JSON.stringify(body):undefined}),env);}
 function callPhoto(record,bytes){const form=new FormData();form.set('record',JSON.stringify(record));form.set('photo',new File([bytes],'piece.jpg',{type:'image/jpeg'}));return worker.fetch(new Request(origin+'/api/records',{method:'POST',headers:{Origin:origin},body:form}),env);}
@@ -41,6 +41,8 @@ test('foto JPEG fica vinculada ao registro e disponível no histórico compartil
  assert.equal((await call('/api/records','POST',record)).status,400);
  const result=await callPhoto(record,bytes);assert.equal(result.status,200);assert.equal((await result.json()).record.photoPresent,true);
  const image=await call('/api/photos/'+record.id);assert.equal(image.status,200);assert.equal(image.headers.get('Content-Type'),'image/jpeg');assert.deepEqual(new Uint8Array(await image.arrayBuffer()),bytes);
+ const key='inspection-photo:'+record.id;legacyPhotos.set(key,photos.get(key));photos.delete(key);
+ const migrated=await call('/api/photos/'+record.id);assert.equal(migrated.status,200);assert.equal(photos.has(key),true);assert.deepEqual(new Uint8Array(await migrated.arrayBuffer()),bytes);
  assert.equal((await callPhoto(record,bytes)).status,200);
  const history=await (await call('/api/records?after=0')).json();assert.equal(history.records.find(item=>item.id===record.id).photoPresent,true);
  assert.equal((await call('/api/photos/123e4567-e89b-42d3-a456-426614174999')).status,404);

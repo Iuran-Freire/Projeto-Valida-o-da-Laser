@@ -14,9 +14,15 @@
       "database_id": "a9d715f1-531a-4645-b5ab-aca323a7d971"
     }
   ],
-  "kv_namespaces": [
+  "r2_buckets": [
     {
       "binding": "PHOTOS",
+      "bucket_name": "valida-laser-teste-fotos"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "LEGACY_PHOTOS",
       "id": "aceeeb4e31344e2fa6c15e31abf6771d"
     }
   ]
