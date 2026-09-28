@@ -4,6 +4,18 @@ const text='NUMERO DE SERIE: AB123456789012';
 test('Duas leituras consistentes e confiáveis permitem comparação automática',()=>{const o=selectOCR([{text,confidence:90},{text,confidence:85}]);assert.equal(o.reliable,true);assert.equal(inspect('AB123456789012',o.text,o.reliable).status,'COINCIDE');assert.equal(inspect('ZZ123456789012',o.text,o.reliable).status,'DIVERGENTE');});
 test('OCR incerto nunca aprova mesmo se o texto coincidir',()=>{const o=selectOCR([{text,confidence:79},{text,confidence:95}]);assert.equal(inspect('AB123456789012',o.text,o.reliable).status,'PENDENTE');});
 test('Duas leituras diferentes ficam pendentes e preservam a candidata',()=>{const o=selectOCR([{text,confidence:95},{text:'NUMERO DE SERIE: AZ123456789012',confidence:90}]);const result=inspect('AB123456789012',o.text,o.reliable);assert.equal(result.status,'PENDENTE');assert.equal(result.print.serial,'AB123456789012');});
+test('O lido no lugar de 0 exige conferência sem alterar a leitura original',()=>{
+ const qr='GH44-03247A+R37L9RGJ0K2IPA',ocr='NUMERO DESERIE:R37L9RGJOK2IPA';
+ const selected=selectOCR([{text:ocr,confidence:96},{text:ocr,confidence:96}],'type-c');
+ assert.equal(selected.reliable,false);
+ const pending=inspect(qr,selected.text,selected.reliable,false,'G');
+ assert.equal(pending.status,'PENDENTE');
+ assert.deepEqual(pending.ocrAmbiguity,{index:8,position:9,read:'O',expected:'0'});
+ assert.match(pending.reason,/OCR leu O na posição 9/);
+ assert.equal(inspect(qr,ocr,true,false,'G').status,'PENDENTE');
+ assert.equal(inspect(qr,ocr,false,true,'G').status,'DIVERGENTE');
+ assert.equal(inspect(qr,'NUMERO DESERIE:R37L9RGJ0K2IPA',false,true,'G').status,'COINCIDE');
+});
 test('Séries exibidas iguais com OCR incerto explicam a pendência sem alegar divergência entre as fontes',()=>{const result=inspect('GH44-03247A+R37L9QHG2P2IPA','NUMERO DE SERIE:R37L9QHG2P2IPA',false);assert.equal(result.status,'PENDENTE');assert.equal(result.rawComparison,'COINCIDE');assert.match(result.reason,/séries exibidas coincidem/i);assert.equal(inspect('GH44-03247A+R37L9QHG2P2IPA','NUMERO DE SERIE:R37L9QHG2P2IPA',false,true).status,'COINCIDE');});
 test('Região sem posição usa foto inteira',()=>assert.deepEqual(nearbyRegion(null,640,480),{x:0,y:0,w:640,h:480}));
 test('15W VE procura tampografia acima do Data Matrix; TYPE C mantém recorte antigo',()=>{
