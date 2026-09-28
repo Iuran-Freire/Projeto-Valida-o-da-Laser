@@ -88,6 +88,21 @@ function missingInk(reference,candidate,shift){
   }
   return missing;
 }
+function extraInk(reference,candidate,shift){
+  const extra=new Uint8Array(WIDTH*HEIGHT);
+  for(let y=8;y<HEIGHT-8;y++)for(let x=8;x<WIDTH-8;x++){
+    // Ignore the edge of the variable barcode/serial masks and of the photo.
+    if(!fixed(x-3,y-3)||!fixed(x+3,y+3))continue;
+    const cx=x-shift.dx,cy=y-shift.dy;
+    if(cx<0||cx>=WIDTH||cy<0||cy>=HEIGHT||!candidate[cy*WIDTH+cx])continue;
+    let expectedNearby=false;
+    for(let oy=-2;oy<=2&&!expectedNearby;oy++)for(let ox=-2;ox<=2;ox++){
+      if(reference[(y+oy)*WIDTH+x+ox]){expectedNearby=true;break;}
+    }
+    if(!expectedNearby)extra[y*WIDTH+x]=1;
+  }
+  return extra;
+}
 function maxFilter(input,width,height,radius){
   const result=new Uint8Array(input.length);
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
@@ -139,8 +154,11 @@ export async function analyzeVisualPrint(photo,position,model){
   if(shift.score<.6)return {status:'inconclusivo',reason:'Não foi possível alinhar toda a tampografia ao padrão. Confira o modelo e tire outra foto.'};
   const missing=missingInk(expected.ink,observed.ink,shift);
   const large=components(missing,WIDTH,HEIGHT,1,374,1,HEIGHT-1).find(item=>item.count>=120);
+  const extra=components(extraInk(expected.ink,observed.ink,shift),WIDTH,HEIGHT)
+    .find(item=>item.count>=20&&item.w>=3&&item.h>=3);
   const crack=thinCracks(logoMask)[0];
   if(large)return {status:'suspeita',reason:'Possível risco ou trecho sem tinta na tampografia. Confira a área marcada na foto.',kind:'falha-de-impressao',region:mapRegion(large,normal),score:large.count};
+  if(extra)return {status:'suspeita',reason:'Possível borrão ou excesso de tinta na tampografia. Confira a área marcada na foto.',kind:'excesso-de-tinta',region:mapRegion(extra,normal),score:extra.count};
   if(crack)return {status:'suspeita',reason:'Possível risco fino nas letras SAMSUNG. Confira a área marcada na foto.',kind:'risco-fino',region:mapRegion(crack,logo),score:crack.count};
   return {status:'sem-suspeita',reason:'Nenhuma falha visual evidente encontrada nesta foto. Confirme a peça antes de registrar.'};
 }

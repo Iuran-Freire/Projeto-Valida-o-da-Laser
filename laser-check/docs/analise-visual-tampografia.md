@@ -35,6 +35,8 @@ O leitor localiza o Data Matrix nas fotos e usa seus quatro cantos para normaliz
 
 Nas três fotos recebidas, a peça boa ficou **sem suspeita**, o risco grande foi destacado e a falha sutil nas letras A/M também foi destacada. Esse ensaio demonstra apenas esses exemplos: uma única peça boa não caracteriza toda a variação normal de foco, iluminação e processo. Por isso, a análise ainda é experimental e permanece no ambiente de teste. Se houver suspeita, o inspetor amplia a foto, marca se confirma ou descarta a falha e só então confirma o registro. Uma falha confirmada resulta em **DIVERGENTE**; a foto original, sem a marcação vermelha, é arquivada. O 15W VE continua com a validação de série atual até receber calibração visual própria.
 
+Uma verificação adicional procura grupos de tinta clara onde a referência não tem impressão, para sinalizar possíveis borrões. Ela ignora bordas e as áreas variáveis do código e da série. Um borrão sintético foi identificado, enquanto as três fotos conhecidas mantiveram seus resultados. Ainda faltam fotos reais de borrões e de falhas não sinalizadas para medir a sensibilidade e os falsos alertas. Mesmo quando o algoritmo não aponta suspeita, o inspetor pode marcar uma falha visual encontrada ao conferir a foto e a peça; esse registro fica **DIVERGENTE** com a decisão manual identificada.
+
 ## Critérios para implementar e validar
 
 1. Fotografar a área de impressão inteira com o celular usado na produção, sem mudar o fluxo de captura nativa.
