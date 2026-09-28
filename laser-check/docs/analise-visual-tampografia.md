@@ -10,6 +10,15 @@ Esta melhoria fica na branch `feature/analise-tampografia-completa`. O escopo é
 - O inspetor confirma manualmente cada registro antes de salvá-lo.
 - A amostra disponível do 15W VE enquadra a tampografia inteira. A foto disponível do TYPE C corta a parte esquerda da impressão e não serve como referência visual completa.
 
+## Padrões fornecidos
+
+| Modelo | Referência | Áreas identificadas |
+| --- | --- | --- |
+| 15W VE TYPE C BLACK, EP-T1510 | [Arte da tampografia](referencias/15w-ve-type-c-black-padrao.png) | SAMSUNG em destaque; bloco de especificações elétricas e fabricante; linha NÚMERO DE SÉRIE; símbolos; código 2D à direita do texto no layout. A coluna WHITE da arte não pertence ao escopo atual. |
+| 15W VE, EP-TA200I | [Padrão da tampografia](referencias/15w-ve-padrao.png) | SAMSUNG à esquerda e ADAPTADOR DE VIAGEM à direita; bloco de modelo/entrada/saída; série; código 2D abaixo; três símbolos à direita; identificação do fabricante e CNPJ na parte inferior. |
+
+As séries e os módulos do código 2D mudam de peça para peça. A comparação visual do desenho fixo deve mascarar essas áreas variáveis, que continuam validadas pelo fluxo atual. A arte do TYPE C descreve a disposição e o conteúdo, mas não é uma fotografia da impressão no plástico; o padrão do 15W VE é uma imagem de baixa resolução. Ambos servem para definir zonas e critérios, não como modelos de pixels diretamente comparáveis a uma foto do Galaxy A07.
+
 ## Critérios para implementar e validar
 
 1. Fotografar a área de impressão inteira com o celular usado na produção, sem mudar o fluxo de captura nativa.
@@ -18,4 +27,4 @@ Esta melhoria fica na branch `feature/analise-tampografia-completa`. O escopo é
 4. Quando houver suspeita, mostrar **divergência na impressão**, apontar a região e o motivo visual, e pedir ao inspetor que confira a foto capturada antes de confirmar o registro. O resultado da série continua visível separadamente.
 5. Medir falsos alarmes e defeitos não detectados com fotos reais de peças boas e defeituosas, incluindo as capturadas pelo Galaxy A07. Ajustar os limiares somente após esse ensaio.
 
-O usuário fornecerá o padrão de tampografia dos dois modelos como referência. Esses padrões definem o desenho esperado. Fotos reais de peças boas e defeituosas serão necessárias para calibrar e demonstrar a confiabilidade da detecção em fotografias do celular. Uma foto insuficiente deve gerar pedido de nova captura, não uma divergência da peça.
+Os padrões dos dois modelos foram recebidos. Fotos reais de peças boas e defeituosas serão necessárias para calibrar e demonstrar a confiabilidade da detecção em fotografias do celular. Uma foto insuficiente deve gerar pedido de nova captura, não uma divergência da peça.
