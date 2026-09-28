@@ -9,6 +9,7 @@ Esta melhoria fica na branch `feature/analise-tampografia-completa`. O escopo é
 - Há dois layouts: 15W VE TYPE C BLACK (`GH44-03247A`) e 15W VE (`GH44-03086A`). Eles precisam de referências separadas.
 - O inspetor confirma manualmente cada registro antes de salvá-lo.
 - A amostra disponível do 15W VE enquadra a tampografia inteira. A foto disponível do TYPE C corta a parte esquerda da impressão e não serve como referência visual completa.
+- Foram recebidas duas fotos completas de peças TYPE C com falha visual, uma evidente e outra sutil. Elas cobrem o enquadramento necessário, mas não substituem uma peça boa de referência.
 
 ## Padrões fornecidos
 
@@ -18,6 +19,13 @@ Esta melhoria fica na branch `feature/analise-tampografia-completa`. O escopo é
 | 15W VE, EP-TA200I | [Padrão da tampografia](referencias/15w-ve-padrao.png) | SAMSUNG à esquerda e ADAPTADOR DE VIAGEM à direita; bloco de modelo/entrada/saída; série; código 2D abaixo; três símbolos à direita; identificação do fabricante e CNPJ na parte inferior. |
 
 As séries e os módulos do código 2D mudam de peça para peça. A comparação visual do desenho fixo deve mascarar essas áreas variáveis, que continuam validadas pelo fluxo atual. A arte do TYPE C descreve a disposição e o conteúdo, mas não é uma fotografia da impressão no plástico; o padrão do 15W VE é uma imagem de baixa resolução. Ambos servem para definir zonas e critérios, não como modelos de pixels diretamente comparáveis a uma foto do Galaxy A07.
+
+### Exemplos de falha recebidos
+
+- [TYPE C, falha evidente](referencias/type-c-falha-evidente.png): perda de impressão perceptível em parte do bloco inferior de texto fixo; a região exata ainda será confirmada pelo inspetor.
+- [TYPE C, falha sutil](referencias/type-c-falha-sutil.png): traço escuro fino atravessa parte das letras grandes da marca; a região exata ainda será confirmada pelo inspetor.
+
+Os exemplos mostram por que não basta verificar se o OCR consegue ler palavras: ele pode reconhecer um texto mesmo com partes do traço apagadas. A análise deve localizar a falha no desenho impresso e exibir essa área na foto para revisão humana.
 
 ## Critérios para implementar e validar
 
