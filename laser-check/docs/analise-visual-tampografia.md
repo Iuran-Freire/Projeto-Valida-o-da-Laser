@@ -8,7 +8,7 @@ Esta melhoria fica na branch `feature/analise-tampografia-completa`. O escopo é
 - A leitura automática recorta a linha da série perto do código 2D; ela não observa a tampografia inteira.
 - Há dois layouts: 15W VE TYPE C BLACK (`GH44-03247A`) e 15W VE (`GH44-03086A`). Eles precisam de referências separadas.
 - O inspetor confirma manualmente cada registro antes de salvá-lo.
-- A amostra disponível do 15W VE enquadra a tampografia inteira. A foto disponível do TYPE C corta a parte esquerda da impressão e não serve como referência visual completa.
+- A amostra disponível do 15W VE enquadra a tampografia inteira. Também foi recebida uma foto de peça boa TYPE C com toda a área impressa.
 - Foram recebidas duas fotos completas de peças TYPE C com falha visual, uma evidente e outra sutil. Elas cobrem o enquadramento necessário, mas não substituem uma peça boa de referência.
 
 ## Padrões fornecidos
@@ -22,10 +22,12 @@ As séries e os módulos do código 2D mudam de peça para peça. A comparação
 
 ### Exemplos de falha recebidos
 
+- [TYPE C, peça boa](referencias/type-c-boa.png): referência fotográfica do mesmo layout; série e módulos do Data Matrix são variáveis e não entram na comparação do desenho fixo.
 - [TYPE C, falha evidente](referencias/type-c-falha-evidente.png): risco grande **sem tinta** atravessa a impressão. O defeito deve ser sinalizado como falha de impressão, ainda que o restante do texto continue legível.
 - [TYPE C, falha sutil](referencias/type-c-falha-sutil.png): risco/falta de tinta nas letras **A/M** de SAMSUNG. A detecção precisa observar os traços das letras grandes, não somente reconhecer a palavra.
 
 Os exemplos mostram por que não basta verificar se o OCR consegue ler palavras: ele pode reconhecer um texto mesmo com partes do traço apagadas. A análise deve localizar a falha no desenho impresso e exibir essa área na foto para revisão humana.
+Um ensaio numérico com a foto boa e as duas defeituosas mostrou que pequenas diferenças de escala e enquadramento alteram muito a comparação de pixels. A implementação precisa registrar geometricamente a impressão e verificar sua qualidade antes de interpretar áreas sem tinta; não deve usar uma diferença global de pixels como decisão de defeito.
 
 ## Critérios para implementar e validar
 
