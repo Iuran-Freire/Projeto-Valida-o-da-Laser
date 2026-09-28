@@ -29,6 +29,12 @@ As séries e os módulos do código 2D mudam de peça para peça. A comparação
 Os exemplos mostram por que não basta verificar se o OCR consegue ler palavras: ele pode reconhecer um texto mesmo com partes do traço apagadas. A análise deve localizar a falha no desenho impresso e exibir essa área na foto para revisão humana.
 Um ensaio numérico com a foto boa e as duas defeituosas mostrou que pequenas diferenças de escala e enquadramento alteram muito a comparação de pixels. A implementação precisa registrar geometricamente a impressão e verificar sua qualidade antes de interpretar áreas sem tinta; não deve usar uma diferença global de pixels como decisão de defeito.
 
+## Protótipo TYPE C na branch de teste
+
+O leitor localiza o Data Matrix nas fotos e usa seus quatro cantos para normalizar a área impressa. Um comparador leve procura regiões grandes sem tinta no desenho fixo; uma segunda verificação, em resolução maior, procura riscos finos que interrompem os traços de SAMSUNG. A série variável e os módulos do Data Matrix não participam da comparação visual.
+
+Nas três fotos recebidas, a peça boa ficou **sem suspeita**, o risco grande foi destacado e a falha sutil nas letras A/M também foi destacada. Esse ensaio demonstra apenas esses exemplos: uma única peça boa não caracteriza toda a variação normal de foco, iluminação e processo. Por isso, a análise ainda é experimental e permanece no ambiente de teste. Se houver suspeita, o inspetor amplia a foto, marca se confirma ou descarta a falha e só então confirma o registro. Uma falha confirmada resulta em **DIVERGENTE**; a foto original, sem a marcação vermelha, é arquivada. O 15W VE continua com a validação de série atual até receber calibração visual própria.
+
 ## Critérios para implementar e validar
 
 1. Fotografar a área de impressão inteira com o celular usado na produção, sem mudar o fluxo de captura nativa.
