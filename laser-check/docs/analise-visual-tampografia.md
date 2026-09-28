@@ -22,8 +22,8 @@ As séries e os módulos do código 2D mudam de peça para peça. A comparação
 
 ### Exemplos de falha recebidos
 
-- [TYPE C, falha evidente](referencias/type-c-falha-evidente.png): perda de impressão perceptível em parte do bloco inferior de texto fixo; a região exata ainda será confirmada pelo inspetor.
-- [TYPE C, falha sutil](referencias/type-c-falha-sutil.png): traço escuro fino atravessa parte das letras grandes da marca; a região exata ainda será confirmada pelo inspetor.
+- [TYPE C, falha evidente](referencias/type-c-falha-evidente.png): risco grande **sem tinta** atravessa a impressão. O defeito deve ser sinalizado como falha de impressão, ainda que o restante do texto continue legível.
+- [TYPE C, falha sutil](referencias/type-c-falha-sutil.png): risco/falta de tinta nas letras **A/M** de SAMSUNG. A detecção precisa observar os traços das letras grandes, não somente reconhecer a palavra.
 
 Os exemplos mostram por que não basta verificar se o OCR consegue ler palavras: ele pode reconhecer um texto mesmo com partes do traço apagadas. A análise deve localizar a falha no desenho impresso e exibir essa área na foto para revisão humana.
 
