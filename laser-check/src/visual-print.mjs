@@ -92,6 +92,9 @@ function extraInk(reference,candidate,shift){
   const extra=new Uint8Array(WIDTH*HEIGHT);
   for(let y=8;y<HEIGHT-8;y++)for(let x=8;x<WIDTH-8;x++){
     // Ignore the edge of the variable barcode/serial masks and of the photo.
+    // Logo edge, variable barcode and small symbols shift with camera angle;
+    // their apparent extra pixels are not reliable evidence of a smudge.
+    if((x>=360&&y<285)||y>=320)continue;
     if(!fixed(x-3,y-3)||!fixed(x+3,y+3))continue;
     const cx=x-shift.dx,cy=y-shift.dy;
     if(cx<0||cx>=WIDTH||cy<0||cy>=HEIGHT||!candidate[cy*WIDTH+cx])continue;
@@ -134,6 +137,27 @@ function thinCracks(logo){
   return components(gaps,width,height,5,width-5,5,height-5)
     .filter(item=>item.count>=60&&item.w>=10&&item.h>=10);
 }
+function secondSDefect(logo){
+  const {ink,width,height}=logo;
+  // Both S glyphs share the same photo, light and printing scale. Compare their
+  // strokes after normalizing each glyph instead of relying on a global photo template.
+  const letters=components(ink,width,height,0,width,0,Math.min(height,160))
+    .filter(item=>item.count>=5000&&item.x>40&&item.w>=70&&item.w<=110&&item.h>=105&&item.h<=135)
+    .sort((a,b)=>a.x-b.x);
+  if(letters.length<2)return null;
+  const first=letters[0],second=letters[1];
+  if(second.x-first.x<230||second.x-first.x>300)return null;
+  const compare=new Uint8Array(80*120);
+  for(let y=60;y<105;y++)for(let x=40;x<60;x++){
+    const sx=first.x+Math.floor((x+.5)*first.w/80),sy=first.y+Math.floor((y+.5)*first.h/120);
+    const tx=second.x+Math.floor((x+.5)*second.w/80),ty=second.y+Math.floor((y+.5)*second.h/120);
+    if(ink[sy*width+sx]&&!ink[ty*width+tx])compare[y*80+x]=1;
+  }
+  const gap=components(compare,80,120,40,60,60,105)
+    .find(item=>item.count>=24&&item.h>=15);
+  if(!gap)return null;
+  return {count:gap.count,x:second.x+Math.floor(gap.x*second.w/80),y:second.y+Math.floor(gap.y*second.h/120),w:Math.max(3,Math.ceil(gap.w*second.w/80)),h:Math.max(3,Math.ceil(gap.h*second.h/120))};
+}
 function mapRegion(region,normal){return {x:Math.round(normal.source.x+region.x*normal.source.w/normal.image.width),y:Math.round(normal.source.y+region.y*normal.source.h/normal.image.height),w:Math.round(region.w*normal.source.w/normal.image.width),h:Math.round(region.h*normal.source.h/normal.image.height)};}
 async function reference(){
   if(!referencePromise)referencePromise=(async()=>{
@@ -156,9 +180,11 @@ export async function analyzeVisualPrint(photo,position,model){
   const large=components(missing,WIDTH,HEIGHT,1,374,1,HEIGHT-1).find(item=>item.count>=120);
   const extra=components(extraInk(expected.ink,observed.ink,shift),WIDTH,HEIGHT)
     .find(item=>item.count>=20&&item.w>=3&&item.h>=3);
+  const secondS=secondSDefect(logoMask);
   const crack=thinCracks(logoMask)[0];
+  if(secondS)return {status:'suspeita',reason:'Possível falha na tinta do segundo S de SAMSUNG. Confira a área marcada na foto.',kind:'falha-no-logotipo',region:mapRegion(secondS,logo),score:secondS.count};
+  if(crack)return {status:'suspeita',reason:'Possível risco fino nas letras SAMSUNG. Confira a área marcada na foto.',kind:'risco-fino',region:mapRegion(crack,logo),score:crack.count};
   if(large)return {status:'suspeita',reason:'Possível risco ou trecho sem tinta na tampografia. Confira a área marcada na foto.',kind:'falha-de-impressao',region:mapRegion(large,normal),score:large.count};
   if(extra)return {status:'suspeita',reason:'Possível borrão ou excesso de tinta na tampografia. Confira a área marcada na foto.',kind:'excesso-de-tinta',region:mapRegion(extra,normal),score:extra.count};
-  if(crack)return {status:'suspeita',reason:'Possível risco fino nas letras SAMSUNG. Confira a área marcada na foto.',kind:'risco-fino',region:mapRegion(crack,logo),score:crack.count};
   return {status:'sem-suspeita',reason:'Nenhuma falha visual evidente encontrada nesta foto. Confirme a peça antes de registrar.'};
 }
