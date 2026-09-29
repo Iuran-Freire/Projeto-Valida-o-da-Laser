@@ -98,7 +98,7 @@ function showDetails(record){
 $('#close-details').onclick=()=>$('#details').close();$('#more').onclick=()=>{limit+=50;renderHistory();};
 async function showPhoto(record){
   if(photoUrl){URL.revokeObjectURL(photoUrl);photoUrl=null;}
-  const image=$('#record-photo'),hint=$('#photo-hint');image.hidden=true;resetPhotoZoom();image.removeAttribute('src');
+  const image=$('#record-photo'),hint=$('#photo-hint');image.hidden=true;image.removeAttribute('src');resetPhotoZoom();
   hint.textContent=(record.syncState==='pending'?'Foto salva neste aparelho · aguardando envio. ':'Foto compartilhada do registro. ')+'Use dois dedos para ampliar e um dedo para mover a foto.';
   $('#photo-dialog').showModal();
   if(record.syncState==='pending'){
@@ -107,22 +107,22 @@ async function showPhoto(record){
     photoUrl=URL.createObjectURL(blob);image.src=photoUrl;
   }else image.src=new URL('api/photos/'+encodeURIComponent(record.id),base).href;
   image.hidden=false;
+  image.onload=()=>resetPhotoZoom();
   image.onerror=()=>{image.hidden=true;hint.textContent='A foto ainda não está disponível. Aguarde um instante e abra novamente.';};
 }
 $('#close-photo').onclick=()=>$('#photo-dialog').close();
-const photoZoomLevels=[1,1.5,2,3,4,5];let photoZoom=1,pinchDistance=0,pinchZoom=1,dragTouch=null;
-function setPhotoZoom(scale,anchorX,anchorY){const viewport=$('.photo-scroll'),x=anchorX??viewport.clientWidth/2,y=anchorY??viewport.clientHeight/2,oldWidth=Math.max(1,viewport.scrollWidth),oldHeight=Math.max(1,viewport.scrollHeight),relativeX=(viewport.scrollLeft+x)/oldWidth,relativeY=(viewport.scrollTop+y)/oldHeight;photoZoom=Math.max(1,Math.min(5,scale));$('#record-photo').style.width=(photoZoom*100)+'%';$('#photo-zoom-value').textContent=Math.round(photoZoom*100)+'%';$('#photo-zoom-out').disabled=photoZoom<=1;$('#photo-zoom-in').disabled=photoZoom>=5;viewport.scrollLeft=relativeX*viewport.scrollWidth-x;viewport.scrollTop=relativeY*viewport.scrollHeight-y;}
-function stepPhotoZoom(direction){const next=direction>0?photoZoomLevels.find(value=>value>photoZoom+.04):[...photoZoomLevels].reverse().find(value=>value<photoZoom-.04);setPhotoZoom(next??(direction>0?5:1));}
-function resetPhotoZoom(){photoZoom=1;$('#record-photo').style.width='100%';$('#photo-zoom-value').textContent='100%';$('#photo-zoom-out').disabled=true;$('#photo-zoom-in').disabled=false;$('.photo-scroll').scrollTo(0,0);}
-$('#photo-zoom-in').onclick=()=>stepPhotoZoom(1);$('#photo-zoom-out').onclick=()=>stepPhotoZoom(-1);$('#photo-zoom-reset').onclick=resetPhotoZoom;
+let photoZoom=1,photoBaseWidth=0,pinchDistance=0,pinchZoom=1,dragTouch=null;
+function fittedPhotoWidth(){const viewport=$('.photo-scroll'),image=$('#record-photo');if(!image.naturalWidth||!image.naturalHeight)return viewport.clientWidth;return Math.min(viewport.clientWidth,viewport.clientHeight*image.naturalWidth/image.naturalHeight);}
+function setPhotoZoom(scale,anchorX,anchorY){const viewport=$('.photo-scroll'),x=anchorX??viewport.clientWidth/2,y=anchorY??viewport.clientHeight/2,oldWidth=Math.max(1,viewport.scrollWidth),oldHeight=Math.max(1,viewport.scrollHeight),relativeX=(viewport.scrollLeft+x)/oldWidth,relativeY=(viewport.scrollTop+y)/oldHeight;photoZoom=Math.max(1,Math.min(5,scale));$('#record-photo').style.width=Math.round(photoBaseWidth*photoZoom)+'px';viewport.scrollLeft=relativeX*viewport.scrollWidth-x;viewport.scrollTop=relativeY*viewport.scrollHeight-y;}
+function resetPhotoZoom(){photoZoom=1;photoBaseWidth=fittedPhotoWidth();$('#record-photo').style.width=Math.round(photoBaseWidth)+'px';$('.photo-scroll').scrollTo(0,0);}
 const photoViewport=$('.photo-scroll');
 const distance=touches=>Math.hypot(touches[0].clientX-touches[1].clientX,touches[0].clientY-touches[1].clientY);
 photoViewport.addEventListener('touchstart',event=>{if(event.touches.length===2){pinchDistance=distance(event.touches);pinchZoom=photoZoom;dragTouch=null;event.preventDefault();}else if(event.touches.length===1)dragTouch={x:event.touches[0].clientX,y:event.touches[0].clientY};},{passive:false});
 photoViewport.addEventListener('touchmove',event=>{if(event.touches.length===2){event.preventDefault();if(!pinchDistance){pinchDistance=distance(event.touches);pinchZoom=photoZoom;}const box=photoViewport.getBoundingClientRect(),x=(event.touches[0].clientX+event.touches[1].clientX)/2-box.left,y=(event.touches[0].clientY+event.touches[1].clientY)/2-box.top;setPhotoZoom(pinchZoom*distance(event.touches)/Math.max(1,pinchDistance),x,y);}else if(event.touches.length===1&&dragTouch){event.preventDefault();const touch=event.touches[0];photoViewport.scrollLeft-=touch.clientX-dragTouch.x;photoViewport.scrollTop-=touch.clientY-dragTouch.y;dragTouch={x:touch.clientX,y:touch.clientY};}},{passive:false});
 photoViewport.addEventListener('touchend',event=>{pinchDistance=0;dragTouch=event.touches.length===1?{x:event.touches[0].clientX,y:event.touches[0].clientY}:null;});
 photoViewport.addEventListener('touchcancel',()=>{pinchDistance=0;dragTouch=null;});
-$('#visual-open-photo').onclick=async()=>{if(!photoBase)return;if(photoUrl){URL.revokeObjectURL(photoUrl);photoUrl=null;}const blob=await jpeg(.9);if(!blob)return;photoUrl=URL.createObjectURL(blob);const image=$('#record-photo');resetPhotoZoom();image.src=photoUrl;image.hidden=false;$('#photo-hint').textContent='Use dois dedos para ampliar e um dedo para mover. Confira toda a tampografia antes de decidir.';$('#photo-dialog').showModal();};
-$('#record-photo').onclick=()=>stepPhotoZoom(1);
+$('#visual-open-photo').onclick=async()=>{if(!photoBase)return;if(photoUrl){URL.revokeObjectURL(photoUrl);photoUrl=null;}const blob=await jpeg(.9);if(!blob)return;photoUrl=URL.createObjectURL(blob);const image=$('#record-photo');image.onload=()=>resetPhotoZoom();image.src=photoUrl;image.hidden=false;$('#photo-hint').textContent='Use dois dedos para ampliar e um dedo para mover. Confira toda a tampografia antes de decidir.';$('#photo-dialog').showModal();};
+window.addEventListener('resize',()=>{if($('#photo-dialog').open)resetPhotoZoom();});
 $('#photo-dialog').addEventListener('close',()=>{if(photoUrl){URL.revokeObjectURL(photoUrl);photoUrl=null;}$('#record-photo').removeAttribute('src');});
 function jpeg(quality){return new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));}
 async function archivePhoto(){

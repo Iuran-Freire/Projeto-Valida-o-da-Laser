@@ -44,3 +44,9 @@ footer{color:#767b82}dialog{color:#34383d;border-color:#d5d7da}dialog::backdrop{
 @media(max-width:380px){.brand-product small{display:none}.shift-card{gap:3px;padding:4px 5px;font-size:.8rem}.capture-actions{grid-template-columns:1fr}.capture-actions>*{grid-column:1/-1}}
 @media(max-width:760px){.main-tabs{display:grid;grid-template-columns:1fr 1fr}.main-tabs button{padding:8px 6px;font-size:.83rem}.management-card{padding:14px}.management-card form{display:grid;grid-template-columns:1fr 1fr}.management-card form>div{grid-column:1/-1}.management-card form button{width:100%}.management-card td:last-child{display:flex;align-items:center}.management-card td:last-child::before{align-self:flex-start}}
 @media(max-width:760px){#details{width:100%;height:100dvh;max-height:100dvh;margin:0;padding:16px 12px;border-radius:0}.detail-grid{grid-template-columns:1fr}.photo-tools{gap:5px}.photo-tools button{min-width:40px;padding:5px 7px}.photo-tools output{min-width:45px}#photo-dialog{width:100%;height:100dvh;max-height:100dvh;margin:0;padding:12px;border-radius:0}.photo-scroll{max-height:calc(100dvh - 170px)}}
+
+#photo-dialog[open]{display:flex;flex-direction:column;height:min(900px,calc(100dvh - 16px));padding:12px;gap:8px}
+#photo-dialog .dialog-heading{flex:none}#photo-hint{flex:none;margin:0;font-size:.75rem}
+.photo-scroll{flex:1;min-height:0;max-height:none;display:flex;align-items:safe center;justify-content:safe center;overflow:auto;background:#202327}
+#record-photo{flex:none;max-width:none;width:auto;height:auto;margin:auto;cursor:default}
+@media(max-width:760px){#photo-dialog[open]{width:100vw;max-width:none;height:100dvh;max-height:100dvh;margin:0;padding:8px;border:0;border-radius:0}.photo-scroll{max-height:none}}
