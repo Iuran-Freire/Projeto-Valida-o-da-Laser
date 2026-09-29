@@ -6,6 +6,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {randomUUID} from 'node:crypto';
 import {isValidRecordShift} from './src/serial-profile.mjs';
 import {normalizeInspectorName,inspectorNameKey,validInspectorEntry} from './src/inspector-roster.mjs';
+import {validManagementPassword,decodeManagementHeader,managementAttemptKey} from './src/management-auth.mjs';
 
 const root=resolve('dist'),dataDir=resolve(process.env.LASER_DATA_DIR||'data');
 await mkdir(dataDir,{recursive:true});
@@ -13,6 +14,7 @@ const photoDir=resolve(dataDir,'photos');await mkdir(photoDir,{recursive:true});
 const db=new DatabaseSync(resolve(dataDir,'inspections.sqlite'));
 db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS inspections (seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,date TEXT NOT NULL,inspector TEXT NOT NULL,payload TEXT NOT NULL)');
 db.exec("CREATE TABLE IF NOT EXISTS inspectors (id TEXT PRIMARY KEY,name TEXT NOT NULL,name_key TEXT NOT NULL UNIQUE,shift TEXT NOT NULL CHECK (shift IN ('G','H','J')),active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),updated_at TEXT NOT NULL)");
+db.exec('CREATE TABLE IF NOT EXISTS management_attempts (client_key TEXT PRIMARY KEY,failures INTEGER NOT NULL,reset_at INTEGER NOT NULL)');
 const insert=db.prepare('INSERT INTO inspections (id,date,inspector,payload) VALUES (?,?,?,?)');
 const existing=db.prepare('SELECT seq,payload FROM inspections WHERE id=?');
 const list=db.prepare('SELECT seq,payload FROM inspections WHERE seq>? ORDER BY seq LIMIT 201');
@@ -29,12 +31,33 @@ async function readUpload(req){
  return {record:JSON.parse(raw),photo:bytes};
 }
 function sameOrigin(req){try{const origin=new URL(req.headers.origin);return origin.host===req.headers.host&&['http:','https:'].includes(origin.protocol);}catch{return false;}}
+async function managerDenial(req,candidate){
+  const secret=process.env.MANAGEMENT_PASSWORD;
+  if(!secret)return {status:503,error:'Senha de gestão não configurada.'};
+  const key=await managementAttemptKey(req.socket.remoteAddress||'local',secret),now=Math.floor(Date.now()/1000);
+  const attempts=db.prepare('SELECT failures,reset_at FROM management_attempts WHERE client_key=?').get(key);
+  if(attempts?.failures>=5&&attempts.reset_at>now)return {status:429,error:'Muitas tentativas. Tente novamente em 15 minutos.'};
+  if(await validManagementPassword(candidate,secret)){
+    if(attempts)db.prepare('DELETE FROM management_attempts WHERE client_key=?').run(key);
+    return null;
+  }
+  const failures=attempts?.reset_at>now?attempts.failures+1:1,resetAt=attempts?.reset_at>now?attempts.reset_at:now+900;
+  db.prepare('INSERT INTO management_attempts (client_key,failures,reset_at) VALUES (?,?,?) ON CONFLICT(client_key) DO UPDATE SET failures=?,reset_at=?').run(key,failures,resetAt,failures,resetAt);
+  return {status:401,error:'Senha incorreta.'};
+}
 async function api(req,res,path,url){
   if(['POST','DELETE'].includes(req.method)&&!sameOrigin(req))return json(res,403,{error:'Origem inválida'});
+  if(path==='/api/management/unlock'&&req.method==='POST'){
+    const body=await readJSON(req);
+    const denial=await managerDenial(req,body?.password);
+    return json(res,denial?.status||200,denial?{error:denial.error}:{ok:true});
+  }
   if(path==='/api/inspectors'&&req.method==='GET'){
     return json(res,200,{inspectors:db.prepare('SELECT id,name,shift,active,updated_at FROM inspectors ORDER BY active DESC,name_key').all().map(row=>({...row,active:Boolean(row.active)}))});
   }
   if(path==='/api/inspectors'&&req.method==='POST'){
+    const denial=await managerDenial(req,decodeManagementHeader(req.headers['x-manager-key']));
+    if(denial)return json(res,denial.status,{error:denial.error});
     const entry=await readJSON(req),name=normalizeInspectorName(entry?.name),shift=String(entry?.shift||'');
     if(!validInspectorEntry(name,shift))return json(res,400,{error:'Informe nome e turno válidos.'});
     const id=entry.id?String(entry.id):randomUUID();
@@ -49,6 +72,8 @@ async function api(req,res,path,url){
     return json(res,existing?200:201,{inspector:{id,name,shift,active:Boolean(active),updated_at:updatedAt}});
   }
   if(path.startsWith('/api/inspectors/')&&req.method==='DELETE'){
+    const denial=await managerDenial(req,decodeManagementHeader(req.headers['x-manager-key']));
+    if(denial)return json(res,denial.status,{error:denial.error});
     const id=path.slice('/api/inspectors/'.length);
     if(!/^[0-9a-f-]{36}$/i.test(id))return json(res,400,{error:'Identificador inválido.'});
     if(!db.prepare('SELECT id FROM inspectors WHERE id=?').get(id))return json(res,404,{error:'Inspetor não encontrado.'});

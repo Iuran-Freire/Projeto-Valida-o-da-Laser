@@ -1,8 +1,22 @@
 import {isValidRecordShift} from './src/serial-profile.mjs';
 import {normalizeInspectorName,inspectorNameKey,validInspectorEntry} from './src/inspector-roster.mjs';
+import {validManagementPassword,decodeManagementHeader,managementAttemptKey} from './src/management-auth.mjs';
 const response=(status,data)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
 async function readJSON(request){const body=await request.text();if(body.length>262144)throw new Error('Corpo muito grande');return JSON.parse(body);}
 const photoKey=id=>'inspection-photo:'+id;
+async function managerDenial(request,env,candidate){
+  if(!env.MANAGEMENT_PASSWORD)return response(503,{error:'Senha de gestão não configurada.'});
+  const key=await managementAttemptKey(request.headers.get('CF-Connecting-IP')||'unknown',env.MANAGEMENT_PASSWORD),now=Math.floor(Date.now()/1000);
+  const attempts=await env.DB.prepare('SELECT failures,reset_at FROM management_attempts WHERE client_key=?').bind(key).first();
+  if(attempts?.failures>=5&&attempts.reset_at>now)return response(429,{error:'Muitas tentativas. Tente novamente em 15 minutos.'});
+  if(await validManagementPassword(candidate,env.MANAGEMENT_PASSWORD)){
+    if(attempts)await env.DB.prepare('DELETE FROM management_attempts WHERE client_key=?').bind(key).run();
+    return null;
+  }
+  const failures=attempts?.reset_at>now?attempts.failures+1:1,resetAt=attempts?.reset_at>now?attempts.reset_at:now+900;
+  await env.DB.prepare('INSERT INTO management_attempts (client_key,failures,reset_at) VALUES (?,?,?) ON CONFLICT(client_key) DO UPDATE SET failures=?,reset_at=?').bind(key,failures,resetAt,failures,resetAt).run();
+  return response(401,{error:'Senha incorreta.'});
+}
 async function readUpload(request){
   const multipart=request.headers.get('Content-Type')?.toLowerCase().startsWith('multipart/form-data');
   if(!multipart)return {record:await readJSON(request),photo:null};
@@ -19,11 +33,18 @@ export default {async fetch(request,env){
   try{
     if(!env.DB)return response(503,{error:'Banco de dados não configurado.'});
     if(['POST','DELETE'].includes(request.method)&&request.headers.get('Origin')!==url.origin)return response(403,{error:'Origem inválida'});
+    if(path==='/api/management/unlock'&&request.method==='POST'){
+      const body=await readJSON(request);
+      const denial=await managerDenial(request,env,body?.password);
+      return denial||response(200,{ok:true});
+    }
     if(path==='/api/inspectors'&&request.method==='GET'){
       const {results}=await env.DB.prepare('SELECT id,name,shift,active,updated_at FROM inspectors ORDER BY active DESC,name_key').all();
       return response(200,{inspectors:results.map(row=>({...row,active:Boolean(row.active)}))});
     }
     if(path==='/api/inspectors'&&request.method==='POST'){
+      const denial=await managerDenial(request,env,decodeManagementHeader(request.headers.get('X-Manager-Key')));
+      if(denial)return denial;
       const entry=await readJSON(request),name=normalizeInspectorName(entry?.name),shift=String(entry?.shift||'');
       if(!validInspectorEntry(name,shift))return response(400,{error:'Informe nome e turno válidos.'});
       const id=entry.id?String(entry.id):crypto.randomUUID();
@@ -38,6 +59,8 @@ export default {async fetch(request,env){
       return response(existing?200:201,{inspector:{id,name,shift,active:Boolean(active),updated_at:updatedAt}});
     }
     if(path.startsWith('/api/inspectors/')&&request.method==='DELETE'){
+      const denial=await managerDenial(request,env,decodeManagementHeader(request.headers.get('X-Manager-Key')));
+      if(denial)return denial;
       const id=path.slice('/api/inspectors/'.length);
       if(!/^[0-9a-f-]{36}$/i.test(id))return response(400,{error:'Identificador inválido.'});
       const row=await env.DB.prepare('SELECT id FROM inspectors WHERE id=?').bind(id).first();
