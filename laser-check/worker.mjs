@@ -1,4 +1,5 @@
 import {isValidRecordShift} from './src/serial-profile.mjs';
+import {normalizeInspectorName,inspectorNameKey,validInspectorEntry} from './src/inspector-roster.mjs';
 const response=(status,data)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
 async function readJSON(request){const body=await request.text();if(body.length>262144)throw new Error('Corpo muito grande');return JSON.parse(body);}
 const photoKey=id=>'inspection-photo:'+id;
@@ -17,7 +18,33 @@ export default {async fetch(request,env){
   if(!path.startsWith('/api/'))return env.ASSETS.fetch(request);
   try{
     if(!env.DB)return response(503,{error:'Banco de dados não configurado.'});
-    if(request.method==='POST'&&request.headers.get('Origin')!==url.origin)return response(403,{error:'Origem inválida'});
+    if(['POST','DELETE'].includes(request.method)&&request.headers.get('Origin')!==url.origin)return response(403,{error:'Origem inválida'});
+    if(path==='/api/inspectors'&&request.method==='GET'){
+      const {results}=await env.DB.prepare('SELECT id,name,shift,active,updated_at FROM inspectors ORDER BY active DESC,name_key').all();
+      return response(200,{inspectors:results.map(row=>({...row,active:Boolean(row.active)}))});
+    }
+    if(path==='/api/inspectors'&&request.method==='POST'){
+      const entry=await readJSON(request),name=normalizeInspectorName(entry?.name),shift=String(entry?.shift||'');
+      if(!validInspectorEntry(name,shift))return response(400,{error:'Informe nome e turno válidos.'});
+      const id=entry.id?String(entry.id):crypto.randomUUID();
+      if(!/^[0-9a-f-]{36}$/i.test(id))return response(400,{error:'Identificador inválido.'});
+      const existing=entry.id?await env.DB.prepare('SELECT id FROM inspectors WHERE id=?').bind(id).first():null;
+      if(entry.id&&!existing)return response(404,{error:'Inspetor não encontrado.'});
+      const key=inspectorNameKey(name),duplicate=await env.DB.prepare('SELECT id FROM inspectors WHERE name_key=?').bind(key).first();
+      if(duplicate&&duplicate.id!==id)return response(409,{error:'Este inspetor já está cadastrado.'});
+      const active=existing?entry.active===false?0:1:1,updatedAt=new Date().toISOString();
+      if(existing)await env.DB.prepare('UPDATE inspectors SET name=?,name_key=?,shift=?,active=?,updated_at=? WHERE id=?').bind(name,key,shift,active,updatedAt,id).run();
+      else await env.DB.prepare('INSERT INTO inspectors (id,name,name_key,shift,active,updated_at) VALUES (?,?,?,?,?,?)').bind(id,name,key,shift,active,updatedAt).run();
+      return response(existing?200:201,{inspector:{id,name,shift,active:Boolean(active),updated_at:updatedAt}});
+    }
+    if(path.startsWith('/api/inspectors/')&&request.method==='DELETE'){
+      const id=path.slice('/api/inspectors/'.length);
+      if(!/^[0-9a-f-]{36}$/i.test(id))return response(400,{error:'Identificador inválido.'});
+      const row=await env.DB.prepare('SELECT id FROM inspectors WHERE id=?').bind(id).first();
+      if(!row)return response(404,{error:'Inspetor não encontrado.'});
+      await env.DB.prepare('UPDATE inspectors SET active=0,updated_at=? WHERE id=?').bind(new Date().toISOString(),id).run();
+      return response(200,{ok:true});
+    }
     if(path==='/api/records'&&request.method==='GET'){
       const after=Number(url.searchParams.get('after')||0);if(!Number.isSafeInteger(after)||after<0)return response(400,{error:'Cursor inválido'});
       const {results}=await env.DB.prepare('SELECT seq,payload FROM inspections WHERE seq>? ORDER BY seq LIMIT 201').bind(after).all();
@@ -40,6 +67,8 @@ export default {async fetch(request,env){
     if(path==='/api/records'&&request.method==='POST'){
       const {record,photo}=await readUpload(request),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
       if(!inspector||inspector.length>80||!/^[0-9a-f-]{36}$/i.test(record.id||'')||!Number.isFinite(Date.parse(record.date))||!['COINCIDE','DIVERGENTE','PENDENTE'].includes(record.status))return response(400,{error:'Registro ou nome do inspetor inválido.'});
+      const roster=await env.DB.prepare('SELECT COUNT(*) AS total FROM inspectors').first();
+      if(roster.total&&!await env.DB.prepare('SELECT id FROM inspectors WHERE name_key=?').bind(inspectorNameKey(inspector)).first())return response(400,{error:'Inspetor não cadastrado.'});
       if(!isValidRecordShift(record))return response(400,{error:'Turno inválido ou incompatível com o código 2D.'});
       if(Boolean(photo)!==Boolean(record.photoPresent))return response(400,{error:'Cada novo registro deve incluir sua foto.'});
       if(photo&&!env.PHOTOS)return response(503,{error:'Armazenamento de fotos indisponível.'});

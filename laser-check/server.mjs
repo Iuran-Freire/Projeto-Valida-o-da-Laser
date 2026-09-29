@@ -3,13 +3,16 @@ import {readFile,mkdir,writeFile,unlink} from 'node:fs/promises';
 import {Readable} from 'node:stream';
 import {resolve,extname,sep} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
+import {randomUUID} from 'node:crypto';
 import {isValidRecordShift} from './src/serial-profile.mjs';
+import {normalizeInspectorName,inspectorNameKey,validInspectorEntry} from './src/inspector-roster.mjs';
 
 const root=resolve('dist'),dataDir=resolve(process.env.LASER_DATA_DIR||'data');
 await mkdir(dataDir,{recursive:true});
 const photoDir=resolve(dataDir,'photos');await mkdir(photoDir,{recursive:true});
 const db=new DatabaseSync(resolve(dataDir,'inspections.sqlite'));
 db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS inspections (seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,date TEXT NOT NULL,inspector TEXT NOT NULL,payload TEXT NOT NULL)');
+db.exec("CREATE TABLE IF NOT EXISTS inspectors (id TEXT PRIMARY KEY,name TEXT NOT NULL,name_key TEXT NOT NULL UNIQUE,shift TEXT NOT NULL CHECK (shift IN ('G','H','J')),active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),updated_at TEXT NOT NULL)");
 const insert=db.prepare('INSERT INTO inspections (id,date,inspector,payload) VALUES (?,?,?,?)');
 const existing=db.prepare('SELECT seq,payload FROM inspections WHERE id=?');
 const list=db.prepare('SELECT seq,payload FROM inspections WHERE seq>? ORDER BY seq LIMIT 201');
@@ -27,7 +30,31 @@ async function readUpload(req){
 }
 function sameOrigin(req){try{const origin=new URL(req.headers.origin);return origin.host===req.headers.host&&['http:','https:'].includes(origin.protocol);}catch{return false;}}
 async function api(req,res,path,url){
-  if(req.method==='POST'&&!sameOrigin(req))return json(res,403,{error:'Origem inválida'});
+  if(['POST','DELETE'].includes(req.method)&&!sameOrigin(req))return json(res,403,{error:'Origem inválida'});
+  if(path==='/api/inspectors'&&req.method==='GET'){
+    return json(res,200,{inspectors:db.prepare('SELECT id,name,shift,active,updated_at FROM inspectors ORDER BY active DESC,name_key').all().map(row=>({...row,active:Boolean(row.active)}))});
+  }
+  if(path==='/api/inspectors'&&req.method==='POST'){
+    const entry=await readJSON(req),name=normalizeInspectorName(entry?.name),shift=String(entry?.shift||'');
+    if(!validInspectorEntry(name,shift))return json(res,400,{error:'Informe nome e turno válidos.'});
+    const id=entry.id?String(entry.id):randomUUID();
+    if(!/^[0-9a-f-]{36}$/i.test(id))return json(res,400,{error:'Identificador inválido.'});
+    const existing=entry.id?db.prepare('SELECT id FROM inspectors WHERE id=?').get(id):null;
+    if(entry.id&&!existing)return json(res,404,{error:'Inspetor não encontrado.'});
+    const key=inspectorNameKey(name),duplicate=db.prepare('SELECT id FROM inspectors WHERE name_key=?').get(key);
+    if(duplicate&&duplicate.id!==id)return json(res,409,{error:'Este inspetor já está cadastrado.'});
+    const active=existing?entry.active===false?0:1:1,updatedAt=new Date().toISOString();
+    if(existing)db.prepare('UPDATE inspectors SET name=?,name_key=?,shift=?,active=?,updated_at=? WHERE id=?').run(name,key,shift,active,updatedAt,id);
+    else db.prepare('INSERT INTO inspectors (id,name,name_key,shift,active,updated_at) VALUES (?,?,?,?,?,?)').run(id,name,key,shift,active,updatedAt);
+    return json(res,existing?200:201,{inspector:{id,name,shift,active:Boolean(active),updated_at:updatedAt}});
+  }
+  if(path.startsWith('/api/inspectors/')&&req.method==='DELETE'){
+    const id=path.slice('/api/inspectors/'.length);
+    if(!/^[0-9a-f-]{36}$/i.test(id))return json(res,400,{error:'Identificador inválido.'});
+    if(!db.prepare('SELECT id FROM inspectors WHERE id=?').get(id))return json(res,404,{error:'Inspetor não encontrado.'});
+    db.prepare('UPDATE inspectors SET active=0,updated_at=? WHERE id=?').run(new Date().toISOString(),id);
+    return json(res,200,{ok:true});
+  }
   if(path==='/api/records'&&req.method==='GET'){
     const after=Number(url.searchParams.get('after')||0);if(!Number.isSafeInteger(after)||after<0)return json(res,400,{error:'Cursor inválido'});
     const rows=list.all(after),page=rows.slice(0,200);
@@ -41,6 +68,7 @@ async function api(req,res,path,url){
   if(path==='/api/records'&&req.method==='POST'){
     const {record,photo}=await readUpload(req),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
     if(!inspector||inspector.length>80||!/^[0-9a-f-]{36}$/i.test(record.id||'')||!Number.isFinite(Date.parse(record.date))||!['COINCIDE','DIVERGENTE','PENDENTE'].includes(record.status))return json(res,400,{error:'Registro ou nome do inspetor inválido.'});
+    if(db.prepare('SELECT COUNT(*) AS total FROM inspectors').get().total&&!db.prepare('SELECT id FROM inspectors WHERE name_key=?').get(inspectorNameKey(inspector)))return json(res,400,{error:'Inspetor não cadastrado.'});
     if(!isValidRecordShift(record))return json(res,400,{error:'Turno inválido ou incompatível com o código 2D.'});
     if(Boolean(photo)!==Boolean(record.photoPresent))return json(res,400,{error:'Cada novo registro deve incluir sua foto.'});
     const found=existing.get(record.id);if(found)return json(res,200,{record:{...JSON.parse(found.payload),seq:found.seq,syncState:'synced'}});

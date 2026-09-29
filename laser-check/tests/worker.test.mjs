@@ -5,10 +5,11 @@ import worker from '../worker.mjs';
 
 const db=new DatabaseSync(':memory:');
 db.exec('CREATE TABLE inspections (seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,date TEXT NOT NULL,inspector TEXT NOT NULL,payload TEXT NOT NULL)');
+db.exec("CREATE TABLE inspectors (id TEXT PRIMARY KEY,name TEXT NOT NULL,name_key TEXT NOT NULL UNIQUE,shift TEXT NOT NULL CHECK (shift IN ('G','H','J')),active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),updated_at TEXT NOT NULL)");
 const photos=new Map(),legacyPhotos=new Map();
-const env={DB:{prepare(sql){return {bind(...values){return {all:async()=>({results:db.prepare(sql).all(...values)}),first:async()=>db.prepare(sql).get(...values),run:async()=>db.prepare(sql).run(...values)};}};}},PHOTOS:{put:async(key,value)=>photos.set(key,value),get:async key=>photos.has(key)?{arrayBuffer:async()=>photos.get(key)}:null,delete:async key=>photos.delete(key)},LEGACY_PHOTOS:{get:async key=>legacyPhotos.get(key)||null}};
+const env={DB:{prepare(sql){const bound=(values=[])=>({all:async()=>({results:db.prepare(sql).all(...values)}),first:async()=>db.prepare(sql).get(...values),run:async()=>db.prepare(sql).run(...values)});return {...bound(),bind:(...values)=>bound(values)};}},PHOTOS:{put:async(key,value)=>photos.set(key,value),get:async key=>photos.has(key)?{arrayBuffer:async()=>photos.get(key)}:null,delete:async key=>photos.delete(key)},LEGACY_PHOTOS:{get:async key=>legacyPhotos.get(key)||null}};
 const origin='https://laser.example.com';
-function call(path,method='GET',body){return worker.fetch(new Request(origin+path,{method,headers:body?{'Content-Type':'application/json','Origin':origin}:{},body:body?JSON.stringify(body):undefined}),env);}
+function call(path,method='GET',body){return worker.fetch(new Request(origin+path,{method,headers:method==='GET'?{}:{...(body?{'Content-Type':'application/json'}:{}),Origin:origin},body:body?JSON.stringify(body):undefined}),env);}
 function callPhoto(record,bytes){const form=new FormData();form.set('record',JSON.stringify(record));form.set('photo',new File([bytes],'piece.jpg',{type:'image/jpeg'}));return worker.fetch(new Request(origin+'/api/records',{method:'POST',headers:{Origin:origin},body:form}),env);}
 
 test('nome do inspetor identifica o registro compartilhado sem login',async()=>{
@@ -53,4 +54,24 @@ test('servidor mantém modelo no registro e rejeita coincidência do modelo erra
  assert.equal((await call('/api/records','POST',{...record,model:'type-c'})).status,400);
  assert.equal((await call('/api/records','POST',{...record,shift:'G'})).status,400);
  const saved=await call('/api/records','POST',record);assert.equal(saved.status,200);assert.equal((await saved.json()).record.model,'15w-ve');
+});
+
+test('gestão compartilha inspetores e turno padrão sem alterar o histórico',async()=>{
+  const created=await call('/api/inspectors','POST',{name:'  Ana   Souza  ',shift:'H'});
+  assert.equal(created.status,201);
+  const entry=(await created.json()).inspector;
+  assert.equal(entry.name,'Ana Souza');
+  assert.equal(entry.shift,'H');
+  assert.equal((await call('/api/inspectors','POST',{name:'ana souza',shift:'G'})).status,409);
+  const roster=await (await call('/api/inspectors')).json();
+  assert.equal(roster.inspectors.length,1);
+  assert.equal(roster.inspectors[0].active,true);
+  const updated=await call('/api/inspectors','POST',{id:entry.id,name:'Ana Souza',shift:'J'});
+  assert.equal((await updated.json()).inspector.shift,'J');
+  const unregistered={id:'123e4567-e89b-42d3-a456-426614174099',date:'2026-09-29T12:00:00Z',inspector:'Outra pessoa',status:'PENDENTE'};
+  assert.equal((await call('/api/records','POST',unregistered)).status,400);
+  assert.equal((await call('/api/inspectors/'+entry.id,'DELETE')).status,200);
+  assert.equal((await (await call('/api/inspectors')).json()).inspectors[0].active,false);
+  assert.equal((await call('/api/inspectors','POST',{id:entry.id,name:'Ana Souza',shift:'H',active:true})).status,200);
+  assert.equal((await (await call('/api/records?after=0')).json()).records.length,4);
 });
