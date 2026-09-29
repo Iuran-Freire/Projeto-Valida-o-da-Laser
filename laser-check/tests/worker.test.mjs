@@ -58,6 +58,17 @@ test('servidor mantém modelo no registro e rejeita coincidência do modelo erra
  const saved=await call('/api/records','POST',record);assert.equal(saved.status,200);assert.equal((await saved.json()).record.model,'15w-ve');
 });
 
+test('LG 24W só aceita coincidência entre QR, Code 93 e texto EAY',async()=>{
+ const record={id:'123e4567-e89b-42d3-a456-426614174004',date:'2026-09-29T12:00:00Z',inspector:'Bia',model:'lg-24w',shift:'H',confirmed:true,status:'COINCIDE',qr:'IG9U2658889043905',barcode:'EAY65888904',ocr:'EAY65888904 (1.8)'};
+ assert.equal((await call('/api/records','POST',{...record,barcode:'EAY65888905'})).status,400);
+ assert.equal((await call('/api/records','POST',{...record,ocr:'EAY65888905 (1.8)'})).status,400);
+ assert.equal((await call('/api/records','POST',{...record,barcode:'ABC65888904'})).status,400);
+ assert.equal((await call('/api/records','POST',{...record,shift:''})).status,400);
+ const saved=await call('/api/records','POST',record);
+ assert.equal(saved.status,200);
+ assert.equal((await saved.json()).record.model,'lg-24w');
+});
+
 test('gestão compartilha inspetores e turno padrão sem alterar o histórico',async()=>{
   assert.equal((await call('/api/management/unlock','POST',{password:'errada'})).status,401);
   assert.equal((await call('/api/management/unlock','POST',{password:env.MANAGEMENT_PASSWORD})).status,200);
@@ -80,7 +91,7 @@ test('gestão compartilha inspetores e turno padrão sem alterar o histórico',a
   assert.equal((await callManager('/api/inspectors/'+entry.id,'DELETE')).status,200);
   assert.equal((await (await call('/api/inspectors')).json()).inspectors[0].active,false);
   assert.equal((await callManager('/api/inspectors','POST',{id:entry.id,name:'Ana Souza',shift:'H',active:true})).status,200);
-  assert.equal((await (await call('/api/records?after=0')).json()).records.length,4);
+  assert.equal((await (await call('/api/records?after=0')).json()).records.length,5);
 });
 
 test('cinco senhas erradas bloqueiam novas tentativas por quinze minutos',async()=>{

@@ -1,6 +1,7 @@
 import {isValidRecordShift} from './src/serial-profile.mjs';
 import {normalizeInspectorName,inspectorNameKey,validInspectorEntry} from './src/inspector-roster.mjs';
 import {validManagementPassword,decodeManagementHeader,managementAttemptKey} from './src/management-auth.mjs';
+import {inspectLGLabel,LG_24W_ID} from './src/lg-label.mjs';
 const response=(status,data)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
 async function readJSON(request){const body=await request.text();if(body.length>262144)throw new Error('Corpo muito grande');return JSON.parse(body);}
 const photoKey=id=>'inspection-photo:'+id;
@@ -93,6 +94,7 @@ export default {async fetch(request,env){
       const roster=await env.DB.prepare('SELECT COUNT(*) AS total FROM inspectors').first();
       if(roster.total&&!await env.DB.prepare('SELECT id FROM inspectors WHERE name_key=?').bind(inspectorNameKey(inspector)).first())return response(400,{error:'Inspetor não cadastrado.'});
       if(!isValidRecordShift(record))return response(400,{error:'Turno inválido ou incompatível com o código 2D.'});
+      if(record.model===LG_24W_ID&&(!record.shift||!record.confirmed||record.status==='COINCIDE'&&inspectLGLabel(record.qr,record.barcode,record.ocr,true,true).status!=='COINCIDE'))return response(400,{error:'Etiqueta LG 24W sem as três leituras coincidentes ou sem confirmação.'});
       if(Boolean(photo)!==Boolean(record.photoPresent))return response(400,{error:'Cada novo registro deve incluir sua foto.'});
       if(photo&&!env.PHOTOS)return response(503,{error:'Armazenamento de fotos indisponível.'});
       const old=await env.DB.prepare('SELECT seq,payload FROM inspections WHERE id=?').bind(record.id).first();

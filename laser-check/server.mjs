@@ -7,6 +7,7 @@ import {randomUUID} from 'node:crypto';
 import {isValidRecordShift} from './src/serial-profile.mjs';
 import {normalizeInspectorName,inspectorNameKey,validInspectorEntry} from './src/inspector-roster.mjs';
 import {validManagementPassword,decodeManagementHeader,managementAttemptKey} from './src/management-auth.mjs';
+import {inspectLGLabel,LG_24W_ID} from './src/lg-label.mjs';
 
 const root=resolve('dist'),dataDir=resolve(process.env.LASER_DATA_DIR||'data');
 await mkdir(dataDir,{recursive:true});
@@ -95,6 +96,7 @@ async function api(req,res,path,url){
     if(!inspector||inspector.length>80||!/^[0-9a-f-]{36}$/i.test(record.id||'')||!Number.isFinite(Date.parse(record.date))||!['COINCIDE','DIVERGENTE','PENDENTE'].includes(record.status))return json(res,400,{error:'Registro ou nome do inspetor inválido.'});
     if(db.prepare('SELECT COUNT(*) AS total FROM inspectors').get().total&&!db.prepare('SELECT id FROM inspectors WHERE name_key=?').get(inspectorNameKey(inspector)))return json(res,400,{error:'Inspetor não cadastrado.'});
     if(!isValidRecordShift(record))return json(res,400,{error:'Turno inválido ou incompatível com o código 2D.'});
+    if(record.model===LG_24W_ID&&(!record.shift||!record.confirmed||record.status==='COINCIDE'&&inspectLGLabel(record.qr,record.barcode,record.ocr,true,true).status!=='COINCIDE'))return json(res,400,{error:'Etiqueta LG 24W sem as três leituras coincidentes ou sem confirmação.'});
     if(Boolean(photo)!==Boolean(record.photoPresent))return json(res,400,{error:'Cada novo registro deve incluir sua foto.'});
     const found=existing.get(record.id);if(found)return json(res,200,{record:{...JSON.parse(found.payload),seq:found.seq,syncState:'synced'}});
     const stored={...record,inspector,photoPresent:Boolean(photo)};delete stored.seq;delete stored.syncState;

@@ -38,6 +38,7 @@ export function inspect(qr,ocr,reliable,visuallyConfirmed=false,shift='',model=D
   return {...result,status:partMismatch||shiftMismatch||invalidCode?'DIVERGENTE':pending?'PENDENTE':profileIssue?'DIVERGENTE':result.status,reason:partIssue+shiftIssue+codeOnlyIssue+baseReason,rawComparison:result.status,ambiguousI,ambiguousO,ocrAmbiguity,shiftCheck,partCheck};
 }
 export function nearbyRegion(position,width,height,model=DEFAULT_MODEL){
+  if(getModelProfile(model).layout==='full')return {x:0,y:0,w:width,h:height};
   if(!position)return {x:0,y:0,w:width,h:height};
   const points=Object.values(position).filter(p=>Number.isFinite(p?.x)&&Number.isFinite(p?.y));
   if(points.length<4)return {x:0,y:0,w:width,h:height};

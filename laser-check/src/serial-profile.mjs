@@ -3,6 +3,7 @@ export const DEFAULT_MODEL='type-c';
 export const MODEL_PROFILES=Object.freeze({
   'type-c':Object.freeze({id:'type-c',label:'15W VE TYPE C',secCode:PROFILE_PART,version:'type-c-v2',layout:'below-left',fixed:Object.freeze({0:'R',1:'3',2:'7',10:'2',11:'I',12:'P',13:'A'})}),
   '15w-ve':Object.freeze({id:'15w-ve',label:'15W VE',secCode:'GH44-03086A',version:'15w-ve-v1',layout:'above',fixed:Object.freeze({0:'R',1:'3',2:'7',10:'2',11:'I',12:'P',13:'A'})})
+  ,'lg-24w':Object.freeze({id:'lg-24w',label:'LG 24W',secCode:'',version:'lg-label-v1',layout:'full',kind:'label',fixed:Object.freeze({})})
 });
 export const isModelCode=value=>typeof value==='string'&&Object.hasOwn(MODEL_PROFILES,value);
 export const getModelProfile=(model=DEFAULT_MODEL)=>MODEL_PROFILES[model]||MODEL_PROFILES[DEFAULT_MODEL];
@@ -35,6 +36,7 @@ export function isValidRecordShift(record){
   if(!isModelCode(model))return false;
   if(record.shift==null)return true; // Registros antigos ou pendentes criados antes do campo turno.
   if(!isShiftCode(record.shift))return false;
+  if(model==='lg-24w')return true; // O turno identifica o inspetor; não é codificado no QR da etiqueta LG.
   if(record.status!=='COINCIDE')return true;
   const prefix=getModelProfile(model).secCode.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const serial=String(record.qr||'').trim().match(new RegExp('^'+prefix+'\\+([A-Za-z0-9]{14})$'))?.[1];
