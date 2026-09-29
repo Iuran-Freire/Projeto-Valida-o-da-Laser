@@ -85,13 +85,13 @@ function showDetails(record){
   const date=document.createElement('span');date.textContent=new Date(record.date).toLocaleString('pt-BR');summary.append(date);
   const dl=document.createElement('dl');dl.className='detail-grid';
   for(const [label,value] of [['Inspetor',record.inspector||'Não informado'],['Turno',record.shift?`${SHIFT_LABELS[record.shift]||'Turno'} (${record.shift})`:'Não informado'],['Modelo',profile.label],['SEC CODE',record.qr?.split('+')[0]||'Não identificado'],['Série no código 2D',code||'Não identificada'],['Série na tampografia',print||'Não identificada'],['Conferência da impressão',record.visualDecision==='defect'?'Falha visual identificada':record.visualDecision==='clear'?'Sem falha visual identificada':'Não informada'],['Sincronização',record.syncState==='synced'?'Compartilhado':record.syncState==='pending'?'Aguardando envio':'Somente neste aparelho']]){const item=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;item.append(dt,dd);dl.append(item);}
-  const body=[summary,dl];
-  if(record.reason&&record.status!=='COINCIDE'){const reason=document.createElement('p');reason.className='detail-reason';reason.textContent=record.reason;body.push(reason);}
   const table=document.createElement('section');table.className='position-details detail-positions';
   const heading=document.createElement('h3');heading.textContent='Validação por posição · '+profile.secCode;table.append(heading);
+  const explanation=document.createElement('p');explanation.textContent='Texto fixo, data de fabricação, turno/linha e contador conforme a planilha. Vermelho indica diferença ou caractere fora do padrão.';table.append(explanation);
   if(code?.length===14&&print?.length===14){const head=document.createElement('div');head.className='position-head';for(const text of ['Pos.','Significado','QR','Foto']){const cell=document.createElement('span');cell.textContent=text;head.append(cell);}table.append(head,positionRows(comparePositions(code,print,model)));}
   else{const missing=document.createElement('p');missing.textContent='A tabela estará completa quando as duas séries de 14 caracteres forem identificadas.';table.append(missing);}
-  body.push(table);
+  const body=[summary,table,dl];
+  if(record.reason&&record.status!=='COINCIDE'){const reason=document.createElement('p');reason.className='detail-reason';reason.textContent=record.reason;body.push(reason);}
   if(record.photoPresent){const photoButton=document.createElement('button');photoButton.type='button';photoButton.textContent='Abrir foto e ampliar';photoButton.onclick=()=>{$('#details').close();showPhoto(record);};body.push(photoButton);}
   $('#detail-body').replaceChildren(...body);$('#details').showModal();
 }
@@ -99,7 +99,7 @@ $('#close-details').onclick=()=>$('#details').close();$('#more').onclick=()=>{li
 async function showPhoto(record){
   if(photoUrl){URL.revokeObjectURL(photoUrl);photoUrl=null;}
   const image=$('#record-photo'),hint=$('#photo-hint');image.hidden=true;resetPhotoZoom();image.removeAttribute('src');
-  hint.textContent=(record.syncState==='pending'?'Foto salva neste aparelho · aguardando envio. ':'Foto compartilhada do registro. ')+'Use + para ampliar e arraste a imagem para conferir os detalhes.';
+  hint.textContent=(record.syncState==='pending'?'Foto salva neste aparelho · aguardando envio. ':'Foto compartilhada do registro. ')+'Use dois dedos para ampliar e um dedo para mover a foto.';
   $('#photo-dialog').showModal();
   if(record.syncState==='pending'){
     const blob=await getPhoto(record.id).catch(()=>null);
@@ -110,12 +110,19 @@ async function showPhoto(record){
   image.onerror=()=>{image.hidden=true;hint.textContent='A foto ainda não está disponível. Aguarde um instante e abra novamente.';};
 }
 $('#close-photo').onclick=()=>$('#photo-dialog').close();
-const photoZoomLevels=[1,1.5,2,3,4];let photoZoomIndex=0;
-function setPhotoZoom(index){const viewport=$('.photo-scroll'),oldWidth=Math.max(1,viewport.scrollWidth),oldHeight=Math.max(1,viewport.scrollHeight),centerX=(viewport.scrollLeft+viewport.clientWidth/2)/oldWidth,centerY=(viewport.scrollTop+viewport.clientHeight/2)/oldHeight;photoZoomIndex=Math.max(0,Math.min(photoZoomLevels.length-1,index));$('#record-photo').style.width=(photoZoomLevels[photoZoomIndex]*100)+'%';$('#photo-zoom-value').textContent=Math.round(photoZoomLevels[photoZoomIndex]*100)+'%';$('#photo-zoom-out').disabled=photoZoomIndex===0;$('#photo-zoom-in').disabled=photoZoomIndex===photoZoomLevels.length-1;requestAnimationFrame(()=>{viewport.scrollLeft=centerX*viewport.scrollWidth-viewport.clientWidth/2;viewport.scrollTop=centerY*viewport.scrollHeight-viewport.clientHeight/2;});}
-function resetPhotoZoom(){photoZoomIndex=0;$('#record-photo').style.width='100%';$('#photo-zoom-value').textContent='100%';$('#photo-zoom-out').disabled=true;$('#photo-zoom-in').disabled=false;$('.photo-scroll').scrollTo(0,0);}
-$('#photo-zoom-in').onclick=()=>setPhotoZoom(photoZoomIndex+1);$('#photo-zoom-out').onclick=()=>setPhotoZoom(photoZoomIndex-1);$('#photo-zoom-reset').onclick=resetPhotoZoom;
-$('#visual-open-photo').onclick=async()=>{if(!photoBase)return;if(photoUrl){URL.revokeObjectURL(photoUrl);photoUrl=null;}const blob=await jpeg(.9);if(!blob)return;photoUrl=URL.createObjectURL(blob);const image=$('#record-photo');resetPhotoZoom();image.src=photoUrl;image.hidden=false;$('#photo-hint').textContent='Use + para ampliar e arraste a imagem. Confira toda a tampografia antes de decidir.';$('#photo-dialog').showModal();};
-$('#record-photo').onclick=()=>setPhotoZoom(photoZoomIndex===photoZoomLevels.length-1?0:photoZoomIndex+1);
+const photoZoomLevels=[1,1.5,2,3,4,5];let photoZoom=1,pinchDistance=0,pinchZoom=1,dragTouch=null;
+function setPhotoZoom(scale,anchorX,anchorY){const viewport=$('.photo-scroll'),x=anchorX??viewport.clientWidth/2,y=anchorY??viewport.clientHeight/2,oldWidth=Math.max(1,viewport.scrollWidth),oldHeight=Math.max(1,viewport.scrollHeight),relativeX=(viewport.scrollLeft+x)/oldWidth,relativeY=(viewport.scrollTop+y)/oldHeight;photoZoom=Math.max(1,Math.min(5,scale));$('#record-photo').style.width=(photoZoom*100)+'%';$('#photo-zoom-value').textContent=Math.round(photoZoom*100)+'%';$('#photo-zoom-out').disabled=photoZoom<=1;$('#photo-zoom-in').disabled=photoZoom>=5;viewport.scrollLeft=relativeX*viewport.scrollWidth-x;viewport.scrollTop=relativeY*viewport.scrollHeight-y;}
+function stepPhotoZoom(direction){const next=direction>0?photoZoomLevels.find(value=>value>photoZoom+.04):[...photoZoomLevels].reverse().find(value=>value<photoZoom-.04);setPhotoZoom(next??(direction>0?5:1));}
+function resetPhotoZoom(){photoZoom=1;$('#record-photo').style.width='100%';$('#photo-zoom-value').textContent='100%';$('#photo-zoom-out').disabled=true;$('#photo-zoom-in').disabled=false;$('.photo-scroll').scrollTo(0,0);}
+$('#photo-zoom-in').onclick=()=>stepPhotoZoom(1);$('#photo-zoom-out').onclick=()=>stepPhotoZoom(-1);$('#photo-zoom-reset').onclick=resetPhotoZoom;
+const photoViewport=$('.photo-scroll');
+const distance=touches=>Math.hypot(touches[0].clientX-touches[1].clientX,touches[0].clientY-touches[1].clientY);
+photoViewport.addEventListener('touchstart',event=>{if(event.touches.length===2){pinchDistance=distance(event.touches);pinchZoom=photoZoom;dragTouch=null;event.preventDefault();}else if(event.touches.length===1)dragTouch={x:event.touches[0].clientX,y:event.touches[0].clientY};},{passive:false});
+photoViewport.addEventListener('touchmove',event=>{if(event.touches.length===2){event.preventDefault();if(!pinchDistance){pinchDistance=distance(event.touches);pinchZoom=photoZoom;}const box=photoViewport.getBoundingClientRect(),x=(event.touches[0].clientX+event.touches[1].clientX)/2-box.left,y=(event.touches[0].clientY+event.touches[1].clientY)/2-box.top;setPhotoZoom(pinchZoom*distance(event.touches)/Math.max(1,pinchDistance),x,y);}else if(event.touches.length===1&&dragTouch){event.preventDefault();const touch=event.touches[0];photoViewport.scrollLeft-=touch.clientX-dragTouch.x;photoViewport.scrollTop-=touch.clientY-dragTouch.y;dragTouch={x:touch.clientX,y:touch.clientY};}},{passive:false});
+photoViewport.addEventListener('touchend',event=>{pinchDistance=0;dragTouch=event.touches.length===1?{x:event.touches[0].clientX,y:event.touches[0].clientY}:null;});
+photoViewport.addEventListener('touchcancel',()=>{pinchDistance=0;dragTouch=null;});
+$('#visual-open-photo').onclick=async()=>{if(!photoBase)return;if(photoUrl){URL.revokeObjectURL(photoUrl);photoUrl=null;}const blob=await jpeg(.9);if(!blob)return;photoUrl=URL.createObjectURL(blob);const image=$('#record-photo');resetPhotoZoom();image.src=photoUrl;image.hidden=false;$('#photo-hint').textContent='Use dois dedos para ampliar e um dedo para mover. Confira toda a tampografia antes de decidir.';$('#photo-dialog').showModal();};
+$('#record-photo').onclick=()=>stepPhotoZoom(1);
 $('#photo-dialog').addEventListener('close',()=>{if(photoUrl){URL.revokeObjectURL(photoUrl);photoUrl=null;}$('#record-photo').removeAttribute('src');});
 function jpeg(quality){return new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));}
 async function archivePhoto(){
