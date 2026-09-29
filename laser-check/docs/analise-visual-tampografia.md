@@ -1,4 +1,12 @@
-# Análise visual da tampografia completa
+# Conferência visual da tampografia
+
+## Fluxo atual
+
+O aplicativo não tenta detectar automaticamente defeitos visuais. Após fotografar a peça, o inspetor pode ampliar a imagem e deve informar se há ou não falha na impressão. A resposta e a foto ficam vinculadas ao registro; uma falha indicada pelo inspetor torna o resultado **DIVERGENTE**. A comparação automática da série, do código 2D e do turno continua independente dessa decisão.
+
+As notas abaixo documentam o estudo anterior da detecção automática. O protótipo foi desativado porque os exemplos reais, inclusive riscos sutis nas letras, não permitiram uma detecção confiável no celular utilizado.
+
+## Histórico do protótipo
 
 Esta melhoria fica na branch `feature/analise-tampografia-completa`. O escopo é detectar defeitos **visuais** na impressão, além da comparação da série já existente: falha ou ausência de impressão, borrões e desalinhamento. Diferenças no texto reconhecido pelo OCR não são, por si só, defeitos visuais.
 

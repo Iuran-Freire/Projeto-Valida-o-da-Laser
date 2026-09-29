@@ -7,8 +7,6 @@ await build({entryPoints:['src/app.mjs'],bundle:true,format:'esm',platform:'brow
 await copyFile('dist/app.js','dist/app-turno-ui.js');
 await unlink('dist/app.js');
 await copyFile('dist/brand.css','dist/brand-photo-feedback.css');
-await mkdir('dist/reference',{recursive:true});
-await copyFile('docs/referencias/type-c-boa.png','dist/reference/type-c-boa.png');
 await copyFile('node_modules/zxing-wasm/dist/reader/zxing_reader.wasm','dist/vendor/zxing_reader.wasm');
 await copyFile('node_modules/tesseract.js/dist/worker.min.js','dist/vendor/worker.min.js');
 for(const file of await readdir('node_modules/tesseract.js-core'))if(file.endsWith('.wasm.js'))await copyFile('node_modules/tesseract.js-core/'+file,'dist/vendor/'+file);
