@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import {strict as assert} from 'node:assert';
-import {parseLGQR,inspectLGLabel} from '../src/lg-label.mjs';
+import {parseLGQR,inspectLGLabel} from '../shared/models/lg-label.mjs';
 
 test('foto LG 24W: QR de 17 posições representa data, linha, Part No. e sequência',()=>{
   const qr=parseLGQR('IG9U2658889043905');

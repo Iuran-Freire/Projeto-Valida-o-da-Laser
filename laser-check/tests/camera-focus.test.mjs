@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {enableContinuousFocus,refocusCamera,sharpnessScore} from '../src/camera-focus.mjs';
+import {enableContinuousFocus,refocusCamera,sharpnessScore} from '../frontend/src/capture/camera-focus.mjs';
 
 test('foco contínuo e toque preservam a resolução solicitada',async()=>{
   const calls=[];

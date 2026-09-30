@@ -25,6 +25,22 @@ No Chrome/Edge compatível, use “Instalar aplicativo” quando disponível. No
 - Guarda UUID, data UTC, inspetor, modelo, turno informado, conteúdo original e utilizado, séries extraídas, origem, formato, confiança OCR, indicação de edição, confirmação visual, versão da regra e foto JPEG vinculada ao UUID. Registros antigos sem modelo são apresentados como TYPE C.
 - O servidor central reúne os registros e fotos de todos os inspetores. O nome é informado livremente no aparelho e não confirma a identidade da pessoa. O histórico e as fotos ficam acessíveis a quem tiver o link do aplicativo.
 
+## Estrutura do projeto
+
+- `frontend/src/`: interface, captura da foto, OCR e sincronização no navegador.
+- `frontend/src/styles/`: estilos base, tema e componentes; estilos antigos ficam em `legacy/`.
+- `frontend/src/capture/`, `ocr/`, `inspection/` e `persistence/`: captura, leitura, inspeção visual e armazenamento/sincronização.
+- `frontend/public/`: HTML e manifesto; imagens em `images/` e ícones em `icons/`.
+- `frontend/dist/`: arquivos gerados por `npm run build` e publicados no Worker.
+- `backend/`: API Cloudflare (`worker.mjs`), servidor local (`server.mjs`) e migrações D1.
+- `shared/models/`, `validation/` e `inspectors/`: perfis dos modelos, comparação/validação e cadastro de inspetores.
+- `backend/auth/`: autenticação da gestão, usada somente pelo servidor.
+- `tests/`: testes das regras e da API.
+- `scripts/`: montagem da versão web; o atalho `INICIAR.cmd` permanece na raiz para abrir o servidor local.
+- `backend/wrangler*.jsonc`: configuração de publicação Cloudflare.
+
+Edite os arquivos de origem em `frontend/src/` e `frontend/public/`; execute o build para atualizar `frontend/dist/`. As configurações Wrangler ficam em `backend/` para apontar para o backend e os arquivos publicados.
+
 ## Desenvolvimento
 
 Node.js 24 ou superior. Para a execução local:
@@ -36,17 +52,17 @@ npm test
 npm start
 ```
 
-Abra http://localhost:4173. O servidor local usa SQLite em `data/inspections.sqlite` e arquivos JPEG em `data/photos/`; não é o armazenamento da Cloudflare. O diretório dist contém a distribuição estática completa, incluindo os leitores, o modelo OCR e o service worker. Não abra o HTML diretamente por file://. Alterações no app requerem novo build. Um service worker novo ativa quando todas as abas da versão anterior forem fechadas.
+Abra http://localhost:4173. O servidor local usa SQLite em `data/inspections.sqlite` e arquivos JPEG em `data/photos/`; não é o armazenamento da Cloudflare. O diretório `frontend/dist` contém a distribuição estática completa, incluindo os leitores, o modelo OCR e o service worker. Não abra o HTML diretamente por file://. Alterações no app requerem novo build. Um service worker novo ativa quando todas as abas da versão anterior forem fechadas.
 
 ## Cloudflare
 
-O projeto inclui `worker.mjs`, `wrangler.jsonc` e a migração D1 em `migrations/`. Use Wrangler autenticado na conta Cloudflare da empresa:
+O projeto inclui `backend/worker.mjs`, `backend/wrangler.jsonc` e as migrações D1 em `backend/migrations/`. Use Wrangler autenticado na conta Cloudflare da empresa:
 
-Para testar a branch antes de publicá-la no aplicativo principal, use `https://valida-laser-teste.iuranhumberto99.workers.dev/`. O arquivo `wrangler.preview.jsonc` publica um Worker separado, ligado ao banco D1 `valida-laser-teste` e ao bucket R2 `valida-laser-teste-fotos`; seus registros e fotos não aparecem na produção. O namespace KV anterior permanece ligado somente para migrar, durante a leitura, eventuais fotos antigas. Gere `dist` com `npm run build` e execute `wrangler deploy --config wrangler.preview.jsonc` para atualizar apenas esse ambiente. O arquivo `wrangler.jsonc` publica a produção com o banco D1 `valida-laser` e o bucket R2 `valida-laser-fotos`.
+Para testar a branch antes de publicá-la no aplicativo principal, use `https://valida-laser-teste.iuranhumberto99.workers.dev/`. O arquivo `backend/wrangler.preview.jsonc` publica um Worker separado, ligado ao banco D1 `valida-laser-teste` e ao bucket R2 `valida-laser-teste-fotos`; seus registros e fotos não aparecem na produção. O namespace KV anterior permanece ligado somente para migrar, durante a leitura, eventuais fotos antigas. Gere `frontend/dist` com `npm run build` e execute `wrangler deploy --config backend/wrangler.preview.jsonc` para atualizar apenas esse ambiente. O arquivo `backend/wrangler.jsonc` publica a produção com o banco D1 `valida-laser` e o bucket R2 `valida-laser-fotos`.
 
-1. Crie um banco D1 chamado `valida-laser` e atualize `database_id` em `wrangler.jsonc` com o ID retornado.
-2. Aplique `migrations/0001_inspections.sql` ao banco remoto.
-3. Execute `npm run build` e `wrangler deploy` para publicar os arquivos estáticos junto com a API.
+1. Crie um banco D1 chamado `valida-laser` e atualize `database_id` em `backend/wrangler.jsonc` com o ID retornado.
+2. Aplique `backend/migrations/0001_inspections.sql` ao banco remoto.
+3. Execute `npm run build` e `wrangler deploy --config backend/wrangler.jsonc` para publicar os arquivos estáticos junto com a API.
 
 Use HTTPS na URL final para permitir a câmera no celular. Após a publicação, informe nomes diferentes em dois aparelhos e confira se um registro feito no primeiro aparece no segundo. O modelo OCR e os arquivos de execução podem exigir uma transferência inicial grande; o primeiro carregamento em rede móvel pode levar tempo. Faça backup regular do banco D1.
 
@@ -62,4 +78,4 @@ Ao voltar da câmera nativa do celular, a mesma foto fornece o código 2D e a ta
 
 ## Leitura v3 — PaddleOCR local
 O reconhecimento usa PP-OCRv5 mobile: imagem original e contraste na leitura inicial; na releitura detalhada, original e contraste da região detectada e do trecho da série ampliado. Na foto original de teste do A07, esse modelo leu o I corretamente, mas ainda confundiu 0 com O; a comparação por posição e a revisão manual permanecem necessárias. O modelo é reutilizado para reduzir o uso de memória no celular. Na leitura detalhada, as quatro tentativas devem identificar a mesma série com confiança de pelo menos 80; uma discordância mantém PENDENTE. Esse critério é heurístico, não uma garantia estatística. O código 2D nunca é usado para preencher/corrigir caracteres da tampografia. Os modelos e o processamento de OCR ficam locais. A primeira preparação offline é maior e a leitura demora mais. O foco e a resolução são controlados pela câmera nativa do celular. O recorte automático procura a série abaixo e à esquerda do Data Matrix no TYPE C e acima do Data Matrix no 15W VE. Para outros layouts, use a seleção manual.
-Fontes e licenças dos modelos: dist/vendor/paddle/SOURCES.txt.  Instalação e precisão no celular precisam de validação no equipamento de produção.
+Fontes e licenças dos modelos: frontend/dist/vendor/paddle/SOURCES.txt.  Instalação e precisão no celular precisam de validação no equipamento de produção.

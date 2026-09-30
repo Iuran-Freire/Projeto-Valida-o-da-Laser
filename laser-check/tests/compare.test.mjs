@@ -1,4 +1,4 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {extractCode,extractPrint,compare,csv} from '../src/compare.mjs';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {extractCode,extractPrint,compare,csv} from '../shared/validation/compare.mjs';
 const serial='AB123456789012';
 test('Extrai série do formato real da foto sem incluir o código da peça',()=>{assert.equal(extractCode('GH44-03247A+R37L9QGE3Y2IPA').serial,'R37L9QGE3Y2IPA');assert.equal(extractCode('GH44-03247A+R37L9QGE3Y2IPA+OTHER').serial,null);});
 test('Compara exclusivamente os 14 caracteres após os delimitadores',()=>{for(const serial of ['R37L9QHG1F2IPA','R37L9QHG362IPA','R37L9QHG1V2IPA','R37L9QHG1K2IPA']){assert.equal(compare('GH44-03247A+'+serial,'NUMERO DESERIE:'+serial).status,'COINCIDE');assert.equal(compare('GH44-03247A+'+serial,'CÓDIGO DE SÉRIE:'+serial).status,'COINCIDE');}assert.equal(compare('GH44-03247A+R37L9QHG1F2IPA','NUMERO DESERIE:R37L9QHG362IPA').status,'DIVERGENTE');assert.equal(extractCode('GH44-03247A+X R37L9QHG1F2IPA').serial,null);assert.equal(extractPrint('NUMERO DESERIE:XR37L9QHG1F2IPA').serial,null);});

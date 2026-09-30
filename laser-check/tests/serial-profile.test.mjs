@@ -1,8 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {validateSerialPositions,comparePositions,checkCodeShift,checkSecCode,isValidRecordShift,YEAR_BY_CODE,MONTH_CODES,DAY_CODES,COUNTER_ALPHABET,MODEL_PROFILES} from '../src/serial-profile.mjs';
-import {compare} from '../src/compare.mjs';
-import {inspect,selectOCR} from '../src/inspection.mjs';
+import {validateSerialPositions,comparePositions,checkCodeShift,checkSecCode,isValidRecordShift,YEAR_BY_CODE,MONTH_CODES,DAY_CODES,COUNTER_ALPHABET,MODEL_PROFILES} from '../shared/models/serial-profile.mjs';
+import {compare} from '../shared/validation/compare.mjs';
+import {inspect,selectOCR} from '../shared/validation/inspection.mjs';
 
 const code='GH44-03247A+R37L9QHG2Z2IPA';
 const text='NUMERO DESERIE:R37L9QHG2Z2IPA';
