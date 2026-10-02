@@ -1,10 +1,15 @@
 import {isValidRecordShift} from '../shared/models/serial-profile.mjs';
+import {inspect} from '../shared/validation/inspection.mjs';
 import {normalizeInspectorName,inspectorNameKey,validInspectorEntry} from '../shared/inspectors/inspector-roster.mjs';
 import {validManagementPassword,decodeManagementHeader,managementAttemptKey} from './auth/management-auth.mjs';
-import {inspectLGLabel,LG_24W_ID} from '../shared/models/lg-label.mjs';
+import {inspectLGLabel,LG_24W_ID,LG_32W_ID} from '../shared/models/lg-label.mjs';
+import {inspectFrecomLabel,FRECOM_24W_ID} from '../shared/models/frecom-24w.mjs';
+import {inspectFrecomDMLabel,FRECOM_DM_24W_ID} from '../shared/models/frecom-dm-24w.mjs';
+import {inspectLGPSULabel,LG_PSU_28W_ID} from '../shared/models/lg-psu-28w.mjs';
+import {inspectA08Battery,A08_BATTERY_ID,A08_BATTERY_62_ID} from '../shared/models/a08-battery.mjs';
 const response=(status,data)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
 async function readJSON(request){const body=await request.text();if(body.length>262144)throw new Error('Corpo muito grande');return JSON.parse(body);}
-const photoKey=id=>'inspection-photo:'+id;
+const photoKey=id=>'inspection-photo:'+id;const barcodePhotoKey=id=>'inspection-photo:'+id+':barcode';
 async function managerDenial(request,env,candidate){
   if(!env.MANAGEMENT_PASSWORD)return response(503,{error:'Senha de gestão não configurada.'});
   const key=await managementAttemptKey(request.headers.get('CF-Connecting-IP')||'unknown',env.MANAGEMENT_PASSWORD),now=Math.floor(Date.now()/1000);
@@ -21,12 +26,12 @@ async function managerDenial(request,env,candidate){
 async function readUpload(request){
   const multipart=request.headers.get('Content-Type')?.toLowerCase().startsWith('multipart/form-data');
   if(!multipart)return {record:await readJSON(request),photo:null};
-  const form=await request.formData(),raw=form.get('record'),photo=form.get('photo');
+  const form=await request.formData(),raw=form.get('record'),photo=form.get('photo'),barcodePhoto=form.get('barcodePhoto');
   if(typeof raw!=='string'||raw.length>262144)throw new Error('Registro inválido.');
   if(!(photo instanceof File)||photo.type!=='image/jpeg'||photo.size<100||photo.size>2000000)throw new Error('Foto JPEG inválida ou maior que 2 MB.');
   const bytes=await photo.arrayBuffer(),head=new Uint8Array(bytes);
   if(head[0]!==0xff||head[1]!==0xd8||head[head.length-2]!==0xff||head[head.length-1]!==0xd9)throw new Error('Arquivo de foto inválido.');
-  return {record:JSON.parse(raw),photo:bytes};
+  let second=null;if(barcodePhoto!==null){if(!(barcodePhoto instanceof File)||barcodePhoto.type!=='image/jpeg'||barcodePhoto.size<100||barcodePhoto.size>2000000)throw new Error('Segunda foto inválida.');second=await barcodePhoto.arrayBuffer();const data=new Uint8Array(second);if(data[0]!==0xff||data[1]!==0xd8||data.at(-2)!==0xff||data.at(-1)!==0xd9)throw new Error('Arquivo da segunda foto inválido.');}return {record:JSON.parse(raw),photo:bytes,barcodePhoto:second};
 }
 export default {async fetch(request,env){
   const url=new URL(request.url),path=url.pathname;
@@ -75,13 +80,13 @@ export default {async fetch(request,env){
       return response(200,{records:results.slice(0,200).map(row=>({...JSON.parse(row.payload),seq:row.seq,syncState:'synced'})),hasMore:results.length>200});
     }
     if(path.startsWith('/api/photos/')&&request.method==='GET'){
-      const id=path.slice('/api/photos/'.length);
+      const match=path.slice('/api/photos/'.length).match(/^([0-9a-f-]{36})(\/barcode)?$/i),id=match?.[1],second=!!match?.[2];
       if(!/^[0-9a-f-]{36}$/i.test(id))return response(404,{error:'Foto não encontrada.'});
       const row=await env.DB.prepare('SELECT seq,payload FROM inspections WHERE id=?').bind(id).first();
-      if(!row||!JSON.parse(row.payload).photoPresent)return response(404,{error:'Foto não encontrada.'});
+      if(!row||!(second?JSON.parse(row.payload).barcodePhotoPresent:JSON.parse(row.payload).photoPresent))return response(404,{error:'Foto não encontrada.'});
       if(!env.PHOTOS)return response(503,{error:'Armazenamento de fotos indisponível.'});
-      let image=await env.PHOTOS.get(photoKey(id));
-      if(!image&&env.LEGACY_PHOTOS){
+      let image=await env.PHOTOS.get(second?barcodePhotoKey(id):photoKey(id));
+      if(!image&&!second&&env.LEGACY_PHOTOS){
         const legacy=await env.LEGACY_PHOTOS.get(photoKey(id),'arrayBuffer');
         if(legacy){await env.PHOTOS.put(photoKey(id),legacy);image=await env.PHOTOS.get(photoKey(id));}
       }
@@ -89,20 +94,26 @@ export default {async fetch(request,env){
       return new Response(await image.arrayBuffer(),{headers:{'Content-Type':'image/jpeg','Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'}});
     }
     if(path==='/api/records'&&request.method==='POST'){
-      const {record,photo}=await readUpload(request),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
+      const {record,photo,barcodePhoto}=await readUpload(request),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
       if(!inspector||inspector.length>80||!/^[0-9a-f-]{36}$/i.test(record.id||'')||!Number.isFinite(Date.parse(record.date))||!['COINCIDE','DIVERGENTE','PENDENTE'].includes(record.status))return response(400,{error:'Registro ou nome do inspetor inválido.'});
       const roster=await env.DB.prepare('SELECT COUNT(*) AS total FROM inspectors').first();
       if(roster.total&&!await env.DB.prepare('SELECT id FROM inspectors WHERE name_key=?').bind(inspectorNameKey(inspector)).first())return response(400,{error:'Inspetor não cadastrado.'});
       if(!isValidRecordShift(record))return response(400,{error:'Turno inválido ou incompatível com o código 2D.'});
-      if(record.model===LG_24W_ID&&(!record.shift||!record.confirmed||record.status==='COINCIDE'&&inspectLGLabel(record.qr,record.barcode,record.ocr,true,true).status!=='COINCIDE'))return response(400,{error:'Etiqueta LG 24W sem as três leituras coincidentes ou sem confirmação.'});
+      if(record.model==='type-c-m09031d'&&record.status==='COINCIDE'&&inspect(record.qr||'',record.ocr||'',true,true,record.shift,record.model).status!=='COINCIDE')return response(400,{error:'M09031D exige final 1IPA no 2D e na tampografia.'});
+    if([A08_BATTERY_ID,A08_BATTERY_62_ID].includes(record.model)&&(!record.shift||!record.confirmed||record.status==='COINCIDE'&&inspectA08Battery(record.qr,record.ocr,true,true,record.model).status!=='COINCIDE'))return response(400,{error:'Bateria A08 sem 2D, data e código impresso coincidentes ou sem confirmação.'});
+    if(record.model===FRECOM_DM_24W_ID&&(!record.shift||!record.confirmed||!photo||barcodePhoto||!['clear','defect'].includes(record.visualDecision)||record.visualDecision==='defect'&&record.status==='COINCIDE'||record.status==='COINCIDE'&&inspectFrecomDMLabel(record.qr,record.ocr,true,true).status!=='COINCIDE'))return response(400,{error:'Frecom 33K0009 exige uma foto, Data Matrix, série impressa e confirmação visual.'});
+    if(record.model===FRECOM_24W_ID&&record.status==='COINCIDE'&&inspectFrecomLabel(record.qr,record.ocr,true,true,record.model).status!=='COINCIDE')return response(400,{error:'Código de barras e texto Frecom não coincidem.'});
+    if(record.model===LG_PSU_28W_ID&&(!record.shift||!record.confirmed||!['clear','defect'].includes(record.visualDecision)||record.visualDecision==='defect'&&record.status==='COINCIDE'||record.status==='COINCIDE'&&inspectLGPSULabel(record.qr,record.ocr,true,true).status!=='COINCIDE'))return response(400,{error:'Etiqueta LG PSU 28W exige Code 93, texto de 17 caracteres, avaliação visual e confirmação.'});
+    if([LG_24W_ID,LG_32W_ID].includes(record.model)&&(!record.shift||!record.confirmed||record.status==='COINCIDE'&&inspectLGLabel(record.qr,record.barcode,record.ocr,true,true,record.model).status!=='COINCIDE'))return response(400,{error:'Etiqueta LG sem as três leituras coincidentes ou sem confirmação.'});
+      if(Boolean(barcodePhoto)!==Boolean(record.barcodePhotoPresent)||[FRECOM_24W_ID,LG_32W_ID].includes(record.model)&&(!photo||!barcodePhoto||!record.confirmed||!['clear','defect'].includes(record.visualDecision)||record.visualDecision==='defect'&&record.status==='COINCIDE'))return response(400,{error:'Este modelo exige duas fotos, avaliação visual e confirmação.'});
       if(Boolean(photo)!==Boolean(record.photoPresent))return response(400,{error:'Cada novo registro deve incluir sua foto.'});
       if(photo&&!env.PHOTOS)return response(503,{error:'Armazenamento de fotos indisponível.'});
       const old=await env.DB.prepare('SELECT seq,payload FROM inspections WHERE id=?').bind(record.id).first();
       if(old)return response(200,{record:{...JSON.parse(old.payload),seq:old.seq,syncState:'synced'}});
       const stored={...record,inspector,photoPresent:Boolean(photo)};delete stored.seq;delete stored.syncState;
-      if(photo)await env.PHOTOS.put(photoKey(stored.id),photo);
+      if(photo)await env.PHOTOS.put(photoKey(stored.id),photo);if(barcodePhoto)await env.PHOTOS.put(barcodePhotoKey(stored.id),barcodePhoto);
       try{await env.DB.prepare('INSERT OR IGNORE INTO inspections (id,date,inspector,payload) VALUES (?,?,?,?)').bind(stored.id,stored.date,stored.inspector,JSON.stringify(stored)).run();}
-      catch(error){if(photo)await env.PHOTOS.delete(photoKey(stored.id));throw error;}
+      catch(error){if(photo)await env.PHOTOS.delete(photoKey(stored.id));if(barcodePhoto)await env.PHOTOS.delete(barcodePhotoKey(stored.id));throw error;}
       const row=await env.DB.prepare('SELECT seq,payload FROM inspections WHERE id=?').bind(stored.id).first();
       return response(200,{record:{...JSON.parse(row.payload),seq:row.seq,syncState:'synced'}});
     }

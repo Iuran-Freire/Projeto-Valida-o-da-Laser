@@ -1,5 +1,8 @@
 export const LG_24W_ID='lg-24w';
-export const LG_24W_LABEL='LG 24W';
+export const LG_24W_LABEL='C01012R - LG 24W';
+export const LG_32W_ID='lg-32w';
+export const LG_32W_LABEL='C01016R - LG 32W';
+export const LG_PART_NO=Object.freeze({[LG_24W_ID]:'65888904',[LG_32W_ID]:'65889910'});
 const years='ABCDEFGHJK',months='123456789OND',days='123456789ABCDEFGHJKLMNPQRSTUVWX';
 const sequencePattern=/^(?:[0-9]{4}|[A-Z][0-9]{3})$/;
 
@@ -34,13 +37,15 @@ export function parseLGPrinted(raw){
   return {text,partNo:matches[0][1],revision:matches.find(match=>match[2])?.[2]||null,valid:true};
 }
 
-export function inspectLGLabel(qrRaw,barcodeRaw,printedRaw,reliable=false,confirmed=false){
+export function inspectLGLabel(qrRaw,barcodeRaw,printedRaw,reliable=false,confirmed=false,model=LG_24W_ID){
   const qr=parseLGQR(qrRaw),barcode=parseLGCode93(barcodeRaw),printed=parseLGPrinted(printedRaw),issues=qr.text?[...qr.issues]:[];
   if(String(barcodeRaw||'').trim()&&!barcode.valid)issues.push('Code 93: esperado EAY seguido de oito dígitos.');
   if(String(printedRaw||'').trim()&&!printed.valid)issues.push('Texto impresso: esperado EAY seguido de oito dígitos.');
   if(qr.partNo&&barcode.partNo&&qr.partNo!==barcode.partNo)issues.push(`QR ${qr.partNo} ≠ Code 93 ${barcode.partNo}.`);
   if(qr.partNo&&printed.partNo&&qr.partNo!==printed.partNo)issues.push(`QR ${qr.partNo} ≠ texto impresso ${printed.partNo}.`);
   if(barcode.partNo&&printed.partNo&&barcode.partNo!==printed.partNo)issues.push(`Code 93 ${barcode.partNo} ≠ texto impresso ${printed.partNo}.`);
+  const expected=LG_PART_NO[model];
+  if(expected)for(const [source,value] of [['QR',qr.partNo],['Code 93',barcode.partNo],['texto impresso',printed.partNo]])if(value&&value!==expected)issues.push(`${source}: Part No. ${value}; esperado ${expected} para este modelo.`);
   const missing=[];
   if(!qr.text)missing.push('QR');
   if(!barcode.text)missing.push('Code 93');

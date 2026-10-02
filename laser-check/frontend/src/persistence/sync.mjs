@@ -14,7 +14,7 @@ export async function syncRecords(){
     if(record.photoPresent){
       const photo=await getPhoto(record.id);
       if(!photo)throw new Error('Foto local não encontrada para o registro '+record.id);
-      const form=new FormData();form.set('record',JSON.stringify(record));form.set('photo',photo,'inspecao.jpg');
+      const form=new FormData();form.set('record',JSON.stringify(record));form.set('photo',photo,'inspecao.jpg');if(record.barcodePhotoPresent){const second=await getPhoto(record.id,'barcode');if(!second)throw new Error('Foto da etiqueta não encontrada para o registro '+record.id);form.set('barcodePhoto',second,'etiqueta.jpg');}
       options={method:'POST',body:form};
     }
     const result=await request('records',options);

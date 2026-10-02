@@ -20,3 +20,13 @@ test('etiqueta LG 24W coincide somente com QR, Code 93 e texto impresso compatí
   assert.equal(parseLGQR('IG9U2658889040000').valid,false);
   assert.equal(parseLGQR('IG9U2658889041000').valid,true);
 });
+
+
+test('LG 32W exige Part No. 65889910 nas três fontes',()=>{
+ const qr='IA312658899100001',barcode='EAY65889910',printed='EAY65889910 (0.1)';
+ assert.equal(parseLGQR(qr).valid,true);
+ assert.equal(inspectLGLabel(qr,barcode,printed,true,true,'lg-32w').status,'COINCIDE');
+ assert.equal(inspectLGLabel(qr,barcode,printed,true,true,'lg-24w').status,'DIVERGENTE');
+ assert.equal(inspectLGLabel('IA312658889040001','EAY65888904','EAY65888904 (0.1)',true,true,'lg-32w').status,'DIVERGENTE');
+ assert.equal(inspectLGLabel(qr,barcode,'EAY65888904 (0.1)',true,true,'lg-32w').status,'DIVERGENTE');
+});

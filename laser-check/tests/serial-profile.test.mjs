@@ -114,3 +114,17 @@ test('I lido como 1 pede confirmação sem apagar troca de dia e turno',()=>{
   assert.equal(corrected.status,'DIVERGENTE');
   assert.equal(corrected.ambiguousI,false);
 });
+
+test('Type C distingue os PN M09030D e M09031D pelo final fixo',()=>{
+  const old='R37L9QHG2Z2IPA',newSerial='R37L9QHG2Z1IPA';
+  assert.equal(MODEL_PROFILES['type-c'].label,'M09030D - 15W Type C LowStandBy');
+  assert.equal(MODEL_PROFILES['type-c-m09031d'].label,'M09031D - 15W Type C');
+  assert.equal(validateSerialPositions(old,'type-c').valid,true);
+  assert.equal(validateSerialPositions(newSerial,'type-c-m09031d').valid,true);
+  assert.equal(validateSerialPositions(old,'type-c-m09031d').positions[10].valid,false);
+  assert.equal(validateSerialPositions(newSerial,'type-c').positions[10].valid,false);
+  assert.equal(inspect('GH44-03247A+'+newSerial,'NUMERO DE SERIE:'+newSerial,true,false,'H','type-c-m09031d').status,'COINCIDE');
+  assert.equal(inspect('GH44-03247A+'+old,'NUMERO DE SERIE:'+old,true,false,'H','type-c-m09031d').status,'DIVERGENTE');
+  assert.equal(inspect('GH44-03247A+'+newSerial,'NUMERO DE SERIE:'+newSerial,true,false,'H','type-c').status,'DIVERGENTE');
+  assert.equal(isValidRecordShift({model:'type-c-m09031d',shift:'H',status:'COINCIDE',qr:'GH44-03247A+'+newSerial}),true);
+});

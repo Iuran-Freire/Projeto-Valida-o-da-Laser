@@ -1,16 +1,27 @@
 import {describeLGQR} from '../../../shared/models/lg-label.mjs';
+
 export function createLGQRDetails(raw){
   const {qr,rows}=describeLGQR(raw),section=document.createElement('section');
   section.className='lg-qr-standard';
-  const heading=document.createElement('h3');heading.textContent='Padrão dos caracteres do QR';
-  const status=document.createElement('p');status.className=qr.valid?'match':'mismatch';
-  status.textContent=!qr.text?'Aguardando leitura do QR':qr.valid?'QR conforme o padrão cadastrado · 17 caracteres':'QR fora do padrão: '+qr.issues.join('; ');
+  const heading=document.createElement('h3');heading.textContent='Conferência do QR';
+  const status=document.createElement('p');status.className='lg-qr-summary '+(qr.valid?'match':'mismatch');
+  status.textContent=!qr.text?'Aguardando leitura do QR':qr.valid?'17 caracteres dentro do padrão':'Fora do padrão: '+qr.issues.join('; ');
   section.append(heading,status);
   if(!qr.text)return section;
-  const wrap=document.createElement('div');wrap.className='table-wrap';
-  const table=document.createElement('table'),head=document.createElement('thead'),header=document.createElement('tr');
-  for(const label of ['Pos.','Significado / padrão','Lido','Situação']){const th=document.createElement('th');th.textContent=label;header.append(th);}head.append(header);table.append(head);
-  const body=document.createElement('tbody');
-  for(const row of rows){const tr=document.createElement('tr');tr.className=row.valid?'position-ok':'position-error';for(const value of [row.positions,row.label+' · '+row.rule,row.value,row.valid?'OK':'Inválido']){const td=document.createElement('td');td.textContent=value;tr.append(td);}body.append(tr);}table.append(body);wrap.append(table);section.append(wrap);
+  const list=document.createElement('div');list.className='lg-qr-checks';
+  for(const row of rows){
+    const item=document.createElement('div');item.className='lg-qr-check '+(row.valid?'is-valid':'is-invalid');
+    const position=document.createElement('span');position.className='lg-qr-position';position.textContent=row.positions;
+    const description=document.createElement('div');description.className='lg-qr-description';
+    const label=document.createElement('strong');label.textContent=row.label;
+    const rule=document.createElement('small');rule.textContent=row.rule;
+    description.append(label,rule);
+    const reading=document.createElement('div');reading.className='lg-qr-reading';
+    const value=document.createElement('code');value.textContent=row.value;
+    const state=document.createElement('span');state.textContent=row.valid?'OK':'Revisar';
+    reading.append(value,state);
+    item.append(position,description,reading);list.append(item);
+  }
+  section.append(list);
   return section;
 }

@@ -6,9 +6,14 @@ import {fileURLToPath} from 'node:url';
 import {DatabaseSync} from 'node:sqlite';
 import {randomUUID} from 'node:crypto';
 import {isValidRecordShift} from '../shared/models/serial-profile.mjs';
+import {inspect} from '../shared/validation/inspection.mjs';
 import {normalizeInspectorName,inspectorNameKey,validInspectorEntry} from '../shared/inspectors/inspector-roster.mjs';
 import {validManagementPassword,decodeManagementHeader,managementAttemptKey} from './auth/management-auth.mjs';
-import {inspectLGLabel,LG_24W_ID} from '../shared/models/lg-label.mjs';
+import {inspectLGLabel,LG_24W_ID,LG_32W_ID} from '../shared/models/lg-label.mjs';
+import {inspectFrecomLabel,FRECOM_24W_ID} from '../shared/models/frecom-24w.mjs';
+import {inspectFrecomDMLabel,FRECOM_DM_24W_ID} from '../shared/models/frecom-dm-24w.mjs';
+import {inspectLGPSULabel,LG_PSU_28W_ID} from '../shared/models/lg-psu-28w.mjs';
+import {inspectA08Battery,A08_BATTERY_ID,A08_BATTERY_62_ID} from '../shared/models/a08-battery.mjs';
 
 const root=resolve(fileURLToPath(new URL('../frontend/dist/',import.meta.url))),dataDir=resolve(process.env.LASER_DATA_DIR||fileURLToPath(new URL('../data/',import.meta.url)));
 await mkdir(dataDir,{recursive:true});
@@ -25,12 +30,12 @@ function json(res,status,data){res.writeHead(status,{'Content-Type':'application
 function readJSON(req){return new Promise((resolve,reject)=>{let body='';req.on('data',chunk=>{body+=chunk;if(body.length>262144){reject(new Error('Corpo muito grande'));req.destroy();}});req.on('end',()=>{try{resolve(JSON.parse(body));}catch{reject(new Error('JSON inválido'));}});req.on('error',reject);});}
 async function readUpload(req){
  if(!req.headers['content-type']?.toLowerCase().startsWith('multipart/form-data'))return {record:await readJSON(req),photo:null};
- if(Number(req.headers['content-length'])>2300000)throw new Error('Foto maior que 2 MB.');
+ if(Number(req.headers['content-length'])>4500000)throw new Error('Foto maior que 2 MB.');
  const web=new Request('http://localhost/api/records',{method:'POST',headers:{'Content-Type':req.headers['content-type']},body:Readable.toWeb(req),duplex:'half'});
- const form=await web.formData(),raw=form.get('record'),photo=form.get('photo');
+ const form=await web.formData(),raw=form.get('record'),photo=form.get('photo'),barcodePhoto=form.get('barcodePhoto');
  if(typeof raw!=='string'||raw.length>262144||!(photo instanceof File)||photo.type!=='image/jpeg'||photo.size<100||photo.size>2000000)throw new Error('Registro ou foto inválida.');
  const bytes=Buffer.from(await photo.arrayBuffer());if(bytes[0]!==0xff||bytes[1]!==0xd8||bytes.at(-2)!==0xff||bytes.at(-1)!==0xd9)throw new Error('Arquivo de foto inválido.');
- return {record:JSON.parse(raw),photo:bytes};
+ let second=null;if(barcodePhoto!==null){if(!(barcodePhoto instanceof File)||barcodePhoto.type!=='image/jpeg'||barcodePhoto.size<100||barcodePhoto.size>2000000)throw new Error('Segunda foto inválida.');second=Buffer.from(await barcodePhoto.arrayBuffer());if(second[0]!==0xff||second[1]!==0xd8||second.at(-2)!==0xff||second.at(-1)!==0xd9)throw new Error('Arquivo da segunda foto inválido.');}return {record:JSON.parse(raw),photo:bytes,barcodePhoto:second};
 }
 function sameOrigin(req){try{const origin=new URL(req.headers.origin);return origin.host===req.headers.host&&['http:','https:'].includes(origin.protocol);}catch{return false;}}
 async function managerDenial(req,candidate){
@@ -88,21 +93,27 @@ async function api(req,res,path,url){
     return json(res,200,{records:page.map(row=>({...JSON.parse(row.payload),seq:row.seq,syncState:'synced'})),hasMore:rows.length>200});
   }
   if(path.startsWith('/api/photos/')&&req.method==='GET'){
-    const id=path.slice('/api/photos/'.length);if(!/^[0-9a-f-]{36}$/i.test(id))return json(res,404,{error:'Foto não encontrada.'});
-    const row=existing.get(id);if(!row||!JSON.parse(row.payload).photoPresent)return json(res,404,{error:'Foto não encontrada.'});
-    try{const bytes=await readFile(resolve(photoDir,id+'.jpg'));res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'});res.end(bytes);}catch{return json(res,404,{error:'Foto não encontrada.'});}return;
+    const match=path.slice('/api/photos/'.length).match(/^([0-9a-f-]{36})(\/barcode)?$/i),id=match?.[1],second=!!match?.[2];if(!id)return json(res,404,{error:'Foto não encontrada.'});
+    const row=existing.get(id);if(!row||!(second?JSON.parse(row.payload).barcodePhotoPresent:JSON.parse(row.payload).photoPresent))return json(res,404,{error:'Foto não encontrada.'});
+    try{const bytes=await readFile(resolve(photoDir,id+(second?'-barcode':'')+'.jpg'));res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'});res.end(bytes);}catch{return json(res,404,{error:'Foto não encontrada.'});}return;
   }
   if(path==='/api/records'&&req.method==='POST'){
-    const {record,photo}=await readUpload(req),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
+    const {record,photo,barcodePhoto}=await readUpload(req),inspector=String(record?.inspector||'').trim().replace(/\s+/g,' ');
     if(!inspector||inspector.length>80||!/^[0-9a-f-]{36}$/i.test(record.id||'')||!Number.isFinite(Date.parse(record.date))||!['COINCIDE','DIVERGENTE','PENDENTE'].includes(record.status))return json(res,400,{error:'Registro ou nome do inspetor inválido.'});
     if(db.prepare('SELECT COUNT(*) AS total FROM inspectors').get().total&&!db.prepare('SELECT id FROM inspectors WHERE name_key=?').get(inspectorNameKey(inspector)))return json(res,400,{error:'Inspetor não cadastrado.'});
     if(!isValidRecordShift(record))return json(res,400,{error:'Turno inválido ou incompatível com o código 2D.'});
-    if(record.model===LG_24W_ID&&(!record.shift||!record.confirmed||record.status==='COINCIDE'&&inspectLGLabel(record.qr,record.barcode,record.ocr,true,true).status!=='COINCIDE'))return json(res,400,{error:'Etiqueta LG 24W sem as três leituras coincidentes ou sem confirmação.'});
+    if(record.model==='type-c-m09031d'&&record.status==='COINCIDE'&&inspect(record.qr||'',record.ocr||'',true,true,record.shift,record.model).status!=='COINCIDE')return json(res,400,{error:'M09031D exige final 1IPA no 2D e na tampografia.'});
+    if([A08_BATTERY_ID,A08_BATTERY_62_ID].includes(record.model)&&(!record.shift||!record.confirmed||record.status==='COINCIDE'&&inspectA08Battery(record.qr,record.ocr,true,true,record.model).status!=='COINCIDE'))return json(res,400,{error:'Bateria A08 sem 2D, data e código impresso coincidentes ou sem confirmação.'});
+    if(record.model===FRECOM_DM_24W_ID&&(!record.shift||!record.confirmed||!photo||barcodePhoto||!['clear','defect'].includes(record.visualDecision)||record.visualDecision==='defect'&&record.status==='COINCIDE'||record.status==='COINCIDE'&&inspectFrecomDMLabel(record.qr,record.ocr,true,true).status!=='COINCIDE'))return json(res,400,{error:'Frecom 33K0009 exige uma foto, Data Matrix, série impressa e confirmação visual.'});
+    if(record.model===FRECOM_24W_ID&&record.status==='COINCIDE'&&inspectFrecomLabel(record.qr,record.ocr,true,true,record.model).status!=='COINCIDE')return json(res,400,{error:'Código de barras e texto Frecom não coincidem.'});
+    if(record.model===LG_PSU_28W_ID&&(!record.shift||!record.confirmed||!['clear','defect'].includes(record.visualDecision)||record.visualDecision==='defect'&&record.status==='COINCIDE'||record.status==='COINCIDE'&&inspectLGPSULabel(record.qr,record.ocr,true,true).status!=='COINCIDE'))return json(res,400,{error:'Etiqueta LG PSU 28W exige Code 93, texto de 17 caracteres, avaliação visual e confirmação.'});
+    if([LG_24W_ID,LG_32W_ID].includes(record.model)&&(!record.shift||!record.confirmed||record.status==='COINCIDE'&&inspectLGLabel(record.qr,record.barcode,record.ocr,true,true,record.model).status!=='COINCIDE'))return json(res,400,{error:'Etiqueta LG sem as três leituras coincidentes ou sem confirmação.'});
+    if(Boolean(barcodePhoto)!==Boolean(record.barcodePhotoPresent)||[FRECOM_24W_ID,LG_32W_ID].includes(record.model)&&(!photo||!barcodePhoto||!record.confirmed||!['clear','defect'].includes(record.visualDecision)||record.visualDecision==='defect'&&record.status==='COINCIDE'))return json(res,400,{error:'Este modelo exige duas fotos, avaliação visual e confirmação.'});
     if(Boolean(photo)!==Boolean(record.photoPresent))return json(res,400,{error:'Cada novo registro deve incluir sua foto.'});
     const found=existing.get(record.id);if(found)return json(res,200,{record:{...JSON.parse(found.payload),seq:found.seq,syncState:'synced'}});
     const stored={...record,inspector,photoPresent:Boolean(photo)};delete stored.seq;delete stored.syncState;
-    if(photo)await writeFile(resolve(photoDir,stored.id+'.jpg'),photo);
-    try{insert.run(stored.id,stored.date,stored.inspector,JSON.stringify(stored));}catch(error){if(photo)await unlink(resolve(photoDir,stored.id+'.jpg')).catch(()=>{});throw error;}
+    if(photo)await writeFile(resolve(photoDir,stored.id+'.jpg'),photo);if(barcodePhoto)await writeFile(resolve(photoDir,stored.id+'-barcode.jpg'),barcodePhoto);
+    try{insert.run(stored.id,stored.date,stored.inspector,JSON.stringify(stored));}catch(error){if(photo)await unlink(resolve(photoDir,stored.id+'.jpg')).catch(()=>{});if(barcodePhoto)await unlink(resolve(photoDir,stored.id+'-barcode.jpg')).catch(()=>{});throw error;}
     const row=existing.get(stored.id);return json(res,201,{record:{...stored,seq:row.seq,syncState:'synced'}});
   }
   return json(res,404,{error:'Rota não encontrada'});

@@ -100,3 +100,75 @@ test('cinco senhas erradas bloqueiam novas tentativas por quinze minutos',async(
   const other=new Request(origin+'/api/management/unlock',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','CF-Connecting-IP':'198.51.100.2'},body:JSON.stringify({password:env.MANAGEMENT_PASSWORD})});
   assert.equal((await worker.fetch(other,env)).status,200);
 });
+
+test('A08 30% e 62% exigem SEC CODE próprio, data e código impresso iguais',async()=>{
+  const record={id:'123e4567-e89b-42d3-a456-426614174005',date:'2026-10-02T12:00:00Z',inspector:'Ana Souza',model:'a08-battery',shift:'H',confirmed:true,status:'COINCIDE',qr:'GH83-13417B+PW1LA01FS+77321W',ocr:'2026.10.01\nPW1LA01FS/--'};
+  assert.equal((await call('/api/records','POST',{...record,qr:'GH83-13417A+PW1LA01FS+77321W'})).status,400);
+  assert.equal((await call('/api/records','POST',{...record,ocr:'2026.10.02\nPW1LA01FS/--'})).status,400);
+  assert.equal((await call('/api/records','POST',{...record,ocr:'2026.10.01\nPW1LA02FS/--'})).status,400);
+  assert.equal((await call('/api/records','POST',{...record,confirmed:false})).status,400);
+  const saved=await call('/api/records','POST',record);
+  assert.equal(saved.status,200);
+  assert.equal((await saved.json()).record.model,'a08-battery');
+  const other={...record,id:'123e4567-e89b-42d3-a456-426614174006',model:'a08-battery-62',qr:'GH83-13419A+PW1LA01FS+77321W'};
+  assert.equal((await call('/api/records','POST',{...other,qr:record.qr})).status,400);
+  assert.equal((await call('/api/records','POST',other)).status,200);
+});
+
+test('servidor rejeita coincidência do PN M09031D com final 2IPA',async()=>{
+  const record={id:'123e4567-e89b-42d3-a456-426614174007',date:'2026-10-02T13:00:00Z',inspector:'Ana Souza',model:'type-c-m09031d',shift:'H',confirmed:true,status:'COINCIDE',qr:'GH44-03247A+R37L9QHG2Z1IPA',ocr:'NUMERO DE SERIE:R37L9QHG2Z1IPA'};
+  assert.equal((await call('/api/records','POST',{...record,qr:'GH44-03247A+R37L9QHG2Z2IPA',ocr:'NUMERO DE SERIE:R37L9QHG2Z2IPA'})).status,400);
+  assert.equal((await call('/api/records','POST',{...record,ocr:'NUMERO DE SERIE:R37L9QHG2Z2IPA'})).status,400);
+  assert.equal((await call('/api/records','POST',record)).status,200);
+});
+
+test('Frecom exige duas fotos e conserva laser e etiqueta separadamente',async()=>{
+ const record={id:'123e4567-e89b-42d3-a456-426614174008',date:'2026-10-02T15:00:00Z',inspector:'Ana Souza',model:'frecom-24w',shift:'H',confirmed:true,visualDecision:'clear',status:'COINCIDE',qr:'I263803579',ocr:'I263803579',photoPresent:true,barcodePhotoPresent:true};
+ const laser=new Uint8Array(120),label=new Uint8Array(140);for(const image of [laser,label]){image[0]=255;image[1]=216;image[image.length-2]=255;image[image.length-1]=217;}
+ const upload=async(item,includeLabel=true)=>{const form=new FormData();form.set('record',JSON.stringify(item));form.set('photo',new File([laser],'laser.jpg',{type:'image/jpeg'}));if(includeLabel)form.set('barcodePhoto',new File([label],'etiqueta.jpg',{type:'image/jpeg'}));return worker.fetch(new Request(origin+'/api/records',{method:'POST',headers:{Origin:origin},body:form}),env);};
+ assert.equal((await upload(record,false)).status,400);
+ assert.equal((await upload({...record,ocr:'I263803580'})).status,400);
+ assert.equal((await upload({...record,visualDecision:''})).status,400);
+ assert.equal((await upload(record)).status,200);
+ assert.deepEqual(new Uint8Array(await (await call('/api/photos/'+record.id)).arrayBuffer()),laser);
+ assert.deepEqual(new Uint8Array(await (await call('/api/photos/'+record.id+'/barcode')).arrayBuffer()),label);
+});
+
+
+test('LG 32W exige duas fotos, confirmação e Part No. próprio',async()=>{
+ const record={id:'123e4567-e89b-42d3-a456-426614174009',date:'2026-10-02T16:00:00Z',inspector:'Ana Souza',model:'lg-32w',shift:'H',confirmed:true,visualDecision:'clear',status:'COINCIDE',qr:'IA312658899100001',barcode:'EAY65889910',ocr:'EAY65889910 (0.1)',photoPresent:true,barcodePhotoPresent:true};
+ const photo=new Uint8Array(120),label=new Uint8Array(140);for(const image of [photo,label]){image[0]=255;image[1]=216;image[image.length-2]=255;image[image.length-1]=217;}
+ const upload=async(item,includeLabel=true)=>{const form=new FormData();form.set('record',JSON.stringify(item));form.set('photo',new File([photo],'corpo.jpg',{type:'image/jpeg'}));if(includeLabel)form.set('barcodePhoto',new File([label],'lateral.jpg',{type:'image/jpeg'}));return worker.fetch(new Request(origin+'/api/records',{method:'POST',headers:{Origin:origin},body:form}),env);};
+ assert.equal((await upload(record,false)).status,400);
+ assert.equal((await upload({...record,visualDecision:''})).status,400);
+ assert.equal((await upload({...record,barcode:'EAY65888904'})).status,400);
+ assert.equal((await upload(record)).status,200);
+ assert.deepEqual(new Uint8Array(await (await call('/api/photos/'+record.id)).arrayBuffer()),photo);
+ assert.deepEqual(new Uint8Array(await (await call('/api/photos/'+record.id+'/barcode')).arrayBuffer()),label);
+});
+
+test('LG PSU 28W exige uma foto, avaliação visual e código impresso completo',async()=>{
+ const record={id:'123e4567-e89b-42d3-a456-426614174010',date:'2026-10-02T17:00:00Z',inspector:'Ana Souza',model:'lg-psu-28w',shift:'H',confirmed:true,visualDecision:'clear',status:'COINCIDE',qr:'IBN13658992060001',ocr:'IBN13658992060001 (1.1)',photoPresent:true,barcodePhotoPresent:false};
+ const image=new Uint8Array(120);image[0]=255;image[1]=216;image[118]=255;image[119]=217;
+ const upload=async(item,withPhoto=true)=>{const form=new FormData();form.set('record',JSON.stringify(item));if(withPhoto)form.set('photo',new File([image],'etiqueta.jpg',{type:'image/jpeg'}));return worker.fetch(new Request(origin+'/api/records',{method:'POST',headers:{Origin:origin},body:form}),env);};
+ assert.equal((await upload(record,false)).status,400);
+ assert.equal((await upload({...record,confirmed:false})).status,400);
+ assert.equal((await upload({...record,visualDecision:''})).status,400);
+ assert.equal((await upload({...record,qr:'IBN13658889040001',ocr:'IBN13658889040001 (1.1)'})).status,400);
+ assert.equal((await upload({...record,ocr:'IBN13658992060002 (1.1)'})).status,400);
+ assert.equal((await upload(record)).status,200);
+ assert.deepEqual(new Uint8Array(await (await call('/api/photos/'+record.id)).arrayBuffer()),image);
+});
+
+test('Frecom 33K0009 exige uma foto, confirmação e série do Data Matrix igual à impressa',async()=>{
+ const record={id:'123e4567-e89b-42d3-a456-426614174011',date:'2026-10-02T18:00:00Z',inspector:'Ana Souza',model:'frecom-dm-24w',shift:'H',confirmed:true,visualDecision:'clear',status:'COINCIDE',qr:'FC024A09+B9PB0391IP',ocr:'B9PB0391IP',photoPresent:true,barcodePhotoPresent:false};
+ const image=new Uint8Array(120);image[0]=255;image[1]=216;image[118]=255;image[119]=217;
+ const upload=async(item,withPhoto=true)=>{const form=new FormData();form.set('record',JSON.stringify(item));if(withPhoto)form.set('photo',new File([image],'etiqueta.jpg',{type:'image/jpeg'}));return worker.fetch(new Request(origin+'/api/records',{method:'POST',headers:{Origin:origin},body:form}),env);};
+ assert.equal((await upload(record,false)).status,400);
+ assert.equal((await upload({...record,confirmed:false})).status,400);
+ assert.equal((await upload({...record,visualDecision:''})).status,400);
+ assert.equal((await upload({...record,qr:'FC024A08+B9PB0391IP'})).status,400);
+ assert.equal((await upload({...record,ocr:'B9PB0401IP'})).status,400);
+ assert.equal((await upload(record)).status,200);
+ assert.deepEqual(new Uint8Array(await (await call('/api/photos/'+record.id)).arrayBuffer()),image);
+});
