@@ -55,3 +55,22 @@ footer{color:#767b82}dialog{color:#34383d;border-color:#d5d7da}dialog::backdrop{
 /* Dialog de detalhes centralizado em telas grandes e pequenas. */
 #details[open]{position:fixed;inset:0;margin:auto;width:min(780px,calc(100vw - 24px));max-width:none;height:fit-content;max-height:calc(100dvh - 24px);overflow:auto;border-radius:12px}
 @media(max-width:760px){#details[open]{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);padding:16px 12px}}
+
+.read-activity{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;width:min(440px,calc(100vw - 24px));padding:15px 16px 13px;border:1px solid #e8b86d;border-radius:14px;background:#fffdfa;box-shadow:0 14px 42px #24272b38;color:#34383d;pointer-events:none}
+.read-activity-head{display:flex;align-items:center;gap:12px}.read-activity-head>div{min-width:0}.read-activity-head strong{display:block;font-size:.95rem;line-height:1.3}.read-activity-head p{margin:3px 0 0;font-size:.8rem;line-height:1.35;color:#60676d;overflow-wrap:anywhere}
+.read-activity-spinner{width:27px;height:27px;flex:0 0 27px;border:3px solid #f8dfb8;border-top-color:#b85c00;border-radius:50%;animation:read-spin .9s linear infinite}
+.read-activity[data-stage="review"] .read-activity-spinner{border:0;background:#e6f5eb;color:#16733e;display:grid;place-items:center;animation:none}.read-activity[data-stage="review"] .read-activity-spinner::after{content:"✓";font-size:1.05rem;font-weight:800}
+.read-activity[data-stage="error"]{border-color:#e2aaa4;background:#fff8f7}.read-activity[data-stage="error"] .read-activity-spinner{border:0;background:#fff0ef;color:#b0312a;display:grid;place-items:center;animation:none}.read-activity[data-stage="error"] .read-activity-spinner::after{content:"!";font-weight:800}
+.read-activity-track{height:4px;margin:12px 0 10px;overflow:hidden;border-radius:20px;background:#f4e4cd}.read-activity-track span{display:block;width:35%;height:100%;border-radius:20px;background:#f99b1f;animation:read-track 1.5s ease-in-out infinite}
+.read-activity[data-stage="review"] .read-activity-track span{width:100%;animation:none;background:#31a563}.read-activity[data-stage="error"] .read-activity-track span{width:100%;animation:none;background:#d05a51}
+.read-activity-steps{display:flex;justify-content:space-between;gap:6px;list-style:none;margin:0;padding:0}.read-activity-steps li{font-size:.69rem;color:#8b9297;font-weight:600}.read-activity-steps li.active{color:#a35100;font-weight:800}.read-activity-steps li.done{color:#197846}
+@keyframes read-spin{to{transform:rotate(360deg)}}@keyframes read-track{0%{transform:translateX(-105%)}50%{transform:translateX(95%)}100%{transform:translateX(310%)}}
+@media(prefers-reduced-motion:reduce){.read-activity-spinner,.read-activity-track span{animation:none}}
+
+.read-activity[data-stage="waiting"] .read-activity-spinner{border:0;background:#e6f5eb;color:#16733e;display:grid;place-items:center;animation:none}.read-activity[data-stage="waiting"] .read-activity-spinner::after{content:"✓";font-size:1.05rem;font-weight:800}
+.read-activity[data-stage="waiting"] .read-activity-track span{width:25%;animation:none;background:#31a563}
+
+
+.capture-actions .new-capture{grid-column:1/-1;flex:1 1 100%;display:flex;align-items:center;justify-content:center;gap:13px;min-height:68px;padding:12px 16px;border-radius:10px;text-align:left;background:#f99b1f;border-color:#f99b1f;color:#292c31}.capture-actions .new-capture:hover{background:#e98a0e;border-color:#e98a0e}.new-capture svg{width:30px;height:30px;flex:none}.new-capture span{display:grid;gap:3px}.new-capture strong{font-size:1rem;line-height:1.2}.new-capture small{font-size:.77rem;line-height:1.3;font-weight:500}.capture-actions #native-trigger.secondary-capture{background:#fff;border-color:#d2d4d7;color:#3d4147;font-weight:600;grid-column:auto}.capture-actions #native-trigger.secondary-capture:hover{background:#fff4e5;border-color:#e3b47a}.capture-actions .new-capture.secondary-reset{background:#fff;border-color:#d2d4d7;color:#3d4147}.capture-actions .new-capture.secondary-reset:hover{background:#fff4e5;border-color:#e3b47a}
+
+#detail-tools{display:grid;gap:12px;margin-top:18px;padding:15px;border:1px solid #e2e4e6;border-radius:10px;background:#f8f9fa}#detail-tools strong{display:block;font-size:.9rem;color:#34383d}#detail-tools .help{margin:4px 0 0}#detail-read{width:100%;min-height:48px;background:#fff;border-color:#cbd1d5;color:#34383d;font-weight:700}#detail-read:hover{background:#fff4e5;border-color:#e3b47a}
