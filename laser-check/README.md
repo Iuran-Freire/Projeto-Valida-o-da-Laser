@@ -1,4 +1,7 @@
+ultima att: 08/10
+
 # Valida Laser
+
 
 PWA para ler QR Code e Data Matrix, reconhecer a tampografia por OCR e comparar a série de 14 caracteres após `+` no código com a série após `:` na tampografia. A leitura da imagem é processada no navegador. A foto JPEG de cada nova inspeção é salva com o registro e sincronizada entre inspetores: os dados de texto ficam em D1 e as fotos do ambiente de teste em R2. Sem conexão, registro e foto aguardam no aparelho até a sincronização. O histórico pode ser exportado em CSV UTF-8 com separador ponto e vírgula; o CSV não inclui as fotos.
 
