@@ -1,4 +1,4 @@
-import { readingComparison } from "./reading-view.mjs";
+import { readingComparison, readingResultNotice } from "./reading-view.mjs";
 import { createLGQRDetails } from "./inspection/lg-qr-details.mjs";
 import { selectLGPrintedText } from "./ocr/lg-label-text.mjs";
 import { readBarcodes, prepareZXingModule } from "zxing-wasm/reader";
@@ -1095,6 +1095,13 @@ function updateCaptureActions() {
 function update() {
   const result = updateReview(),
     panel = $("#live-reading");
+  const notice = readingResultNotice(result, $("#confirmed").checked);
+  if (!busy && notice) {
+    $("#result").className = "result " + notice.style;
+    $("#result .result-symbol").textContent = notice.symbol;
+    $("#result strong").textContent = notice.title;
+    $("#result p").textContent = notice.description;
+  }
   if (busy) {
     panel.replaceChildren();
     const text = document.createElement("p");

@@ -1,3 +1,22 @@
+export function readingResultNotice(result, confirmed = false) {
+  // Preserve model, shift and visual defects already reported as divergences.
+  if (result.status === 'DIVERGENTE') return null;
+  const confirmation = confirmed ? '' : ' Confira a foto e a peça e marque a confirmação para registrar.';
+  if (result.rawComparison === 'COINCIDE') return {
+    style: 'match',
+    symbol: '✓',
+    title: 'Leituras coincidem',
+    description: 'Os dados lidos no código e na impressão coincidem.' + confirmation,
+  };
+  if (result.rawComparison !== 'DIVERGENTE') return null;
+  return {
+    style: 'mismatch',
+    symbol: '≠',
+    title: 'Divergência entre as leituras',
+    description: 'Os dados lidos são diferentes. Confira os caracteres destacados.' + confirmation,
+  };
+}
+
 export function readingComparison(sources, length=14) {
   const panel=document.createElement('section');panel.className='reading-comparison';
   const heading=document.createElement('h3');heading.textContent='Leituras lado a lado';panel.append(heading);
