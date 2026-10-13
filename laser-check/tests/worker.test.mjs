@@ -172,3 +172,16 @@ test('Frecom 33K0009 exige uma foto, confirmação e série do Data Matrix igual
  assert.equal((await upload(record)).status,200);
  assert.deepEqual(new Uint8Array(await (await call('/api/photos/'+record.id)).arrayBuffer()),image);
 });
+
+test('OPPO 45W exige uma foto, confirmação e série do Data Matrix igual à impressa',async()=>{
+ const record={id:'123e4567-e89b-42d3-a456-426614174012',date:'2026-10-02T18:00:00Z',inspector:'Ana Souza',model:'oppo-45w',shift:'H',confirmed:true,visualDecision:'clear',status:'COINCIDE',qr:'I*6114010001966AD11100001',ocr:'I6AD11100001',photoPresent:true,barcodePhotoPresent:false};
+ const image=new Uint8Array(120);image[0]=255;image[1]=216;image[118]=255;image[119]=217;
+ const upload=async(item,withPhoto=true)=>{const form=new FormData();form.set('record',JSON.stringify(item));if(withPhoto)form.set('photo',new File([image],'etiqueta.jpg',{type:'image/jpeg'}));return worker.fetch(new Request(origin+'/api/records',{method:'POST',headers:{Origin:origin},body:form}),env);};
+ assert.equal((await upload(record,false)).status,400);
+ assert.equal((await upload({...record,confirmed:false})).status,400);
+ assert.equal((await upload({...record,visualDecision:''})).status,400);
+ assert.equal((await upload({...record,qr:'I*6114010001976AD11100001'})).status,400);
+ assert.equal((await upload({...record,ocr:'I6AD11100002'})).status,400);
+ assert.equal((await upload(record)).status,200);
+ assert.deepEqual(new Uint8Array(await (await call('/api/photos/'+record.id)).arrayBuffer()),image);
+});

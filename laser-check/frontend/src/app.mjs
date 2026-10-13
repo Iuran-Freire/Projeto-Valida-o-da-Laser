@@ -1,3 +1,4 @@
+import {OPPO_45W_ID,OPPO_PREFIX,inspectOPPOLabel,extractOPPOPrinted} from '../../shared/models/oppo-45w.mjs';
 import { readingComparison, readingResultNotice } from "./reading-view.mjs";
 import { createLGQRDetails } from "./inspection/lg-qr-details.mjs";
 import { selectLGPrintedText } from "./ocr/lg-label-text.mjs";
@@ -279,6 +280,27 @@ function withVisualStatus(result) {
     : result;
 }
 function setModelView() {
+  if (selectedModel === OPPO_45W_ID) {
+    $(".page-heading h1").textContent = "Validação de identificação do produto";
+    $(".page-heading p").textContent =
+      "Leitura do Data Matrix, conferência do SN e avaliação visual da gravação a laser.";
+    $("#frecom-steps").hidden = true;
+    $("#native-trigger").textContent = "Tirar foto da etiqueta";
+    $("#camera-empty p").textContent =
+      "Enquadre o Data Matrix e os doze caracteres impressos abaixo.";
+    $("#lg-barcode-field").hidden = true;
+    $("#lg-details").hidden = false;
+    $("#position-details").hidden = true;
+    $("#qr-label").textContent = "Conteúdo do Data Matrix";
+    $("#ocr-label").textContent = "Série impressa na gravação";
+    $("#qr").placeholder = "I*6114010001966AD11100001";
+    $("#ocr").placeholder = "SN: I6AD11100001";
+    $("#qr-series-hint").textContent = "Número de série do código";
+    $("#print-series-hint").textContent = "Número de série impresso";
+    $(".focus-tip").textContent =
+      "Fotografe a etiqueta inteira com o Data Matrix e a série visível abaixo. Amplie a foto para avaliar falhas na impressão.";
+    return;
+  }
   if (selectedModel === FRECOM_DM_24W_ID) {
     $(".page-heading h1").textContent = "Validação de identificação do produto";
     $(".page-heading p").textContent =
@@ -1141,6 +1163,7 @@ function update() {
   return result;
 }
 function updateReview() {
+  if (selectedModel === OPPO_45W_ID) return updateOPPO();
   updateCaptureActions();
   if (selectedModel === FRECOM_DM_24W_ID) return updateFrecomDM();
   if (selectedModel === LG_PSU_28W_ID) return updateLGPSU();
@@ -2140,6 +2163,7 @@ async function readFrecomDMPhoto(selectionOnly = false, detailed = false) {
     "Leitura pronta, ainda não registrada. Avalie a etiqueta e confirme.";
 }
 async function readPhoto(selectionOnly, detailed = false) {
+  if (selectedModel === OPPO_45W_ID) return readOPPOPhoto(selectionOnly,detailed);
   if (selectedModel === FRECOM_DM_24W_ID)
     return readFrecomDMPhoto(selectionOnly, detailed);
   if (selectedModel === LG_PSU_28W_ID)
@@ -2843,6 +2867,7 @@ function showFrecomDMDetails(record) {
   $("#details").showModal();
 }
 function showDetails(record) {
+  if (record.model === OPPO_45W_ID) return showOPPODetails(record);
   if (record.model === FRECOM_DM_24W_ID) return showFrecomDMDetails(record);
   if (record.model === LG_PSU_28W_ID) return showLGPSUDetails(record);
   if (record.model === FRECOM_24W_ID) return showFrecomDetails(record);
@@ -3715,3 +3740,321 @@ try {
     },
   });
 } catch {}
+
+function updateOPPO() {
+  const check = inspectOPPOLabel(
+      $("#qr").value,
+      $("#ocr").value,
+      ocrReliable,
+      $("#confirmed").checked,
+    ),
+    result = withVisualStatus(check);
+  $("#qr-series").textContent = check.code.serial.text || "Não identificado";
+  $("#print-series").textContent = check.printed.text || "Não identificado";
+  const panel = $("#lg-details");
+  panel.replaceChildren();
+  const title = document.createElement("h3");
+  title.textContent =
+    "Validação da etiqueta · " + getModelProfile(selectedModel).label;
+  panel.append(title);
+  const list = document.createElement("dl");
+  for (const [label, value, state] of [
+    [
+      "Data Matrix",
+      check.code.text || "Não lido",
+      check.code.valid ? "match" : "",
+    ],
+    [
+      "Prefixo · esperado " + OPPO_PREFIX,
+      check.code.prefix || "—",
+      check.code.prefix === OPPO_PREFIX ? "match" : "mismatch",
+    ],
+    [
+      "Série no 2D",
+      check.code.serial.text || "Não lida",
+      check.code.serial.valid ? "match" : "",
+    ],
+    [
+      "Série impressa",
+      check.printed.text || "Não lida",
+      check.printed.valid && check.printed.text === check.code.serial.text
+        ? "match"
+        : "",
+    ],
+    [
+      "Fabricação",
+      check.code.serial.valid
+        ? String(check.code.serial.day).padStart(2, "0") +
+          "/" +
+          String(check.code.serial.month).padStart(2, "0") +
+          "/" +
+          check.code.serial.year
+        : "Aguardando série válida",
+      "",
+    ],
+    ["Linha", check.code.serial.shiftCode || "—", ""],
+    ["Contador", check.code.serial.sequence || "—", ""],
+    ["Fabricante", "I", ""], ["Status · esperado 1", check.code.serial.productStatus || "—", check.code.serial.productStatus === "1" ? "match" : "mismatch"], ["Versão · esperado 1", check.code.serial.revision || "—", check.code.serial.revision === "1" ? "match" : "mismatch"],
+  ]) {
+    const item = document.createElement("div"),
+      dt = document.createElement("dt"),
+      dd = document.createElement("dd");
+    dt.textContent = label;
+    dd.textContent = value;
+    dd.className = state;
+    item.append(dt, dd);
+    list.append(item);
+  }
+  panel.append(list);
+  $("#position-details").hidden = true;
+  $("#shift-check").className = "shift-check pending";
+  $("#shift-check").textContent = inspectorShift
+    ? SHIFT_LABELS[inspectorShift] +
+      " registrado para o inspetor. A linha do produto é independente do turno do inspetor."
+    : "Selecione o turno para identificar o registro.";
+  $("#confirmed-label").textContent =
+    "Conferi o Data Matrix, a série impressa e a qualidade da etiqueta na foto e na peça; confirmo este registro.";
+  renderVisualPanel();
+  $("#i-review").hidden = true;
+  const hasData = !!($("#qr").value.trim() || $("#ocr").value.trim()),
+    preview = hasData && !$("#confirmed").checked;
+  $("#result").className =
+    "result " +
+    (preview && result.status === "COINCIDE"
+      ? "pending"
+      : { COINCIDE: "match", DIVERGENTE: "mismatch", PENDENTE: "pending" }[
+          result.status
+        ]);
+  $("#result .result-symbol").textContent = preview
+    ? "?"
+    : { COINCIDE: "✓", DIVERGENTE: "≠", PENDENTE: "!" }[result.status];
+  $("#result strong").textContent =
+    visualDecision === "defect"
+      ? "Falha visual confirmada"
+      : result.status === "COINCIDE"
+        ? "Data Matrix e série coincidem"
+        : result.status === "DIVERGENTE"
+          ? "Divergência na etiqueta"
+          : "Leitura pendente";
+  $("#result p").textContent =
+    result.reason +
+    (preview ? " Confira a etiqueta e confirme antes de registrar." : "");
+  $("#confirmed").disabled = busy || saving || saved;
+  for (const selector of ["#qr", "#ocr", "#detail-read"])
+    $(selector).disabled = busy || saved;
+  for (const choice of document.querySelectorAll(
+    'input[name="visual-decision"]',
+  ))
+    choice.disabled = busy || saving || saved;
+  $("#save").disabled =
+    busy ||
+    saving ||
+    saved ||
+    !storageReady ||
+    !inspector ||
+    !inspectorShift ||
+    !hasData ||
+    !photoBase ||
+    !$("#confirmed").checked ||
+    !visualDecision;
+  $("#save").textContent = saved
+    ? "Comparação registrada"
+    : !photoBase
+      ? "Tire a foto da etiqueta"
+      : !visualDecision
+        ? "Avalie a etiqueta"
+        : !$("#confirmed").checked
+          ? "Confirme a leitura para registrar"
+          : "Registrar comparação";
+  return {
+    ...result,
+    code: { serial: check.code.serial.text },
+    print: { serial: check.printed.text },
+    rawComparison: check.status,
+  };
+}
+
+async function readOPPOPhoto(selectionOnly = false, detailed = false) {
+  if (busy || !photoBase) return;
+  setBusy(true);
+  saved = false;
+  $("#confirmed").checked = false;
+  ctx.putImageData(photoBase, 0, 0);
+  const problems = [];
+  try {
+    if (!selectionOnly) {
+      $("#qr").value = "";
+      originalCode = "";
+      format = "";
+      codeSource = captureSource;
+      message("Lendo o Data Matrix OPPO…");
+      try {
+        const codes = (
+          await readBarcodes(photoBase, {
+            formats: ["DataMatrix"],
+            tryHarder: true,
+            tryInvert: true,
+            maxNumberOfSymbols: 8,
+          })
+        ).filter((item) => item.isValid !== false);
+        if (codes.length === 1) {
+          originalCode = codes[0].text.trim().toUpperCase();
+          $("#qr").value = originalCode;
+          codePosition = codes[0].position;
+          format = codes[0].format;
+          $("#code-format").textContent = format;
+        } else
+          problems.push(
+            codes.length
+              ? "Mais de um Data Matrix na foto. Fotografe uma peça por vez."
+              : "Data Matrix não encontrado.",
+          );
+      } catch {
+        problems.push(
+          "Falha ao ler o Data Matrix. Confira e digite o valor, se necessário.",
+        );
+      }
+    }
+    $("#ocr").value = "";
+    originalOCR = "";
+    confidence = null;
+    ocrReliable = false;
+    ocrAttempts = [];
+    printSource =
+      (detailed ? "OCR detalhado" : "OCR rápido") + " · " + captureSource;
+    message("Lendo a SN impresso na gravação…");
+    try {
+      const region = { x: 0, y: 0, w: canvas.width, h: canvas.height };
+      ocrAttempts = await readPrintedSerial(
+        canvas,
+        region,
+        (text) => message(text),
+        false,
+        detailed,
+      );
+      const options = ocrAttempts.map((item) => ({
+        item,
+        serial: extractOPPOPrinted(item.fullText || item.text),
+        score: Math.max(
+          item.confidence || 0,
+          ...(item.lines || []).map((line) => line.confidence || 0),
+        ),
+      }));
+      options.sort(
+        (a, b) => Number(!!b.serial) - Number(!!a.serial) || b.score - a.score,
+      );
+      const best = options[0];
+      originalOCR =
+        best?.serial || best?.item.fullText || best?.item.text || "";
+      $("#ocr").value = originalOCR;
+      confidence = best?.score || 0;
+      const count = best?.serial
+        ? options.filter((option) => option.serial === best.serial).length
+        : 0;
+      ocrReliable = !!best?.serial && count >= 2 && confidence >= 70;
+      $("#confidence").textContent =
+        "OCR · " +
+        count +
+        "/" +
+        ocrAttempts.length +
+        " leituras concordantes" +
+        (ocrReliable ? "" : " · conferir");
+      if (!ocrReliable)
+        problems.push(
+          "Confira a série impressa e corrija o OCR se necessário.",
+        );
+    } catch {
+      worker?.terminate();
+      worker = null;
+      $("#confidence").textContent = "OCR indisponível";
+      problems.push(
+        "Não foi possível ler a série impressa. Confira a etiqueta e digite os doze caracteres.",
+      );
+    }
+    if (!selectionOnly)
+      visualAssessment = {
+        status: "manual",
+        reason: "Foto da etiqueta disponível para conferência.",
+      };
+    message(
+      problems.length
+        ? problems.join(" ")
+        : "Data Matrix e série lidos. Confira os doze caracteres.",
+      problems.length > 0,
+    );
+  } finally {
+    setBusy(false);
+    update();
+  }
+  $("#save-message").textContent =
+    "Leitura pronta, ainda não registrada. Avalie a etiqueta e confirme.";
+}
+
+function showOPPODetails(record) {
+  const check = inspectOPPOLabel(
+      record.qr || "",
+      record.ocr || "",
+      true,
+      true,
+    ),
+    summary = document.createElement("div");
+  summary.className = "detail-summary";
+  summary.append(badge(record.status));
+  const date = document.createElement("span");
+  date.textContent = new Date(record.date).toLocaleString("pt-BR");
+  summary.append(date);
+  const dl = document.createElement("dl");
+  dl.className = "detail-grid";
+  for (const [label, value] of [
+    ["Inspetor", record.inspector || "Não informado"],
+    [
+      "Turno",
+      record.shift
+        ? SHIFT_LABELS[record.shift] + " (" + record.shift + ")"
+        : "Não informado",
+    ],
+    ["Modelo", getModelProfile(record.model).label],
+    ["Data Matrix", record.qr || "Não lido"],
+    ["Série impressa", check.printed.text || record.ocr || "Não lida"],
+    ["Ano", check.code.serial.year || "—"],
+    ["Mês", check.code.serial.month || "—"],
+    ["Dia", check.code.serial.day || "—"],
+    ["Linha", check.code.serial.shiftCode || "—"],
+    ["Contador", check.code.serial.sequence || "—"],
+    [
+      "Conferência visual",
+      record.visualDecision === "defect"
+        ? "Falha identificada"
+        : record.visualDecision === "clear"
+          ? "Sem falha identificada"
+          : "Não avaliada",
+    ],
+  ]) {
+    const item = document.createElement("div"),
+      dt = document.createElement("dt"),
+      dd = document.createElement("dd");
+    dt.textContent = label;
+    dd.textContent = String(value);
+    item.append(dt, dd);
+    dl.append(item);
+  }
+  const body = [summary, recordReadingComparison(record), dl];
+  if (record.reason && record.status !== "COINCIDE") {
+    const reason = document.createElement("p");
+    reason.className = "detail-reason";
+    reason.textContent = record.reason;
+    body.push(reason);
+  }
+  if (record.photoPresent) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Abrir foto da etiqueta";
+    button.onclick = () => {
+      $("#details").close();
+      showPhoto(record);
+    };
+    body.push(button);
+  }
+  $("#detail-body").replaceChildren(...body);
+  $("#details").showModal();
+}
