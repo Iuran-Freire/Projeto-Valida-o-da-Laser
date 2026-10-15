@@ -18,12 +18,12 @@ export function createReaderRecovery() {
   };
 }
 
-export function compatibleItems(data) {
+export function compatibleItems(data,offset=0) {
   const lines = (data.blocks || []).flatMap(block =>
     (block.paragraphs || []).flatMap(paragraph => paragraph.lines || []));
   return lines.filter(line => line.text?.trim()).map(line => {
     const {x0, y0, x1, y1} = line.bbox;
     return {text: line.text.trim(), score: (line.confidence || 0) / 100,
-      poly: [[x0,y0],[x1,y0],[x1,y1],[x0,y1]]};
+      poly: [[x0-offset,y0-offset],[x1-offset,y0-offset],[x1-offset,y1-offset],[x0-offset,y1-offset]]};
   });
 }

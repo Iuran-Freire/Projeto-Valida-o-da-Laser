@@ -16,6 +16,7 @@ import {
   nearbyRegion,
 } from "../../shared/validation/inspection.mjs";
 import { readPrintedSerial } from "./ocr/paddle-reader.mjs";
+import { readCodeWithRetry } from "./ocr/m09031d-recovery.mjs";
 import {
   saveRecordWithPhoto,
   listRecords,
@@ -2187,15 +2188,18 @@ async function readPhoto(selectionOnly, detailed = false) {
   ctx.putImageData(photoBase, 0, 0);
   const problems = [];
   try {
-    if (!selectionOnly) {
+    if (!selectionOnly || (selectedModel === "type-c-m09031d" && !$("#qr").value.trim())) {
       $("#qr").value = "";
       originalCode = "";
+      codePosition = null;
       format = "";
       codeSource = captureSource;
       $("#code-format").textContent = "Procurando código";
       message("Lendo QR Code / Data Matrix…");
       try {
-        const codes = (
+        const codes = selectedModel === "type-c-m09031d"
+          ? await readCodeWithRetry(readBarcodes, photoBase, text => message(text))
+          : (
           await readBarcodes(photoBase, {
             formats: ["QRCode", "DataMatrix"],
             tryHarder: true,
@@ -2245,6 +2249,11 @@ async function readPhoto(selectionOnly, detailed = false) {
         (text) => message(text),
         true,
         detailed,
+        {
+          directSerialReader:selectedModel === "type-c-m09031d",
+          searchSmallSerial:selectedModel === "type-c-m09031d",
+          allowUnlabelledSerial:selectedModel === "type-c-m09031d",
+        },
       );
       ocrEngineFailed = false;
       $("#detail-read").textContent = "Leitura detalhada";
@@ -2252,11 +2261,11 @@ async function readPhoto(selectionOnly, detailed = false) {
         ocrAttempts,
         usesProfile($("#qr").value, selectedModel) ? selectedModel : false,
       );
-      originalOCR = best.text;
+      originalOCR = best.rawText ?? best.text;
       confidence = best.confidence;
       ocrReliable = best.reliable;
-      $("#ocr").value = originalOCR;
-      const bestSerial = extractPrint(originalOCR).serial,
+      $("#ocr").value = best.text;
+      const bestSerial = extractPrint(best.text).serial,
         agreements = bestSerial
           ? ocrAttempts.filter(
               (attempt) => extractPrint(attempt.text).serial === bestSerial,
@@ -2276,7 +2285,7 @@ async function readPhoto(selectionOnly, detailed = false) {
           compare($("#qr").value, $("#ocr").value, selectedModel).status ===
             "COINCIDE"
             ? "As séries exibidas coincidem. O OCR não confirmou a série com confiança em todas as tentativas. Confira a peça e marque a conferência manual para concluir."
-            : "O OCR não confirmou a série com confiança. Confira a peça ou selecione a linha da série para ler novamente.",
+            : "O OCR não confirmou a série com confiança. Confira a peça e tente a leitura detalhada; se necessário, faça outra foto mais próxima da etiqueta.",
         );
     } catch (error) {
       ocrEngineFailed = true;

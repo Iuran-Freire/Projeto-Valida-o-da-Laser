@@ -4,3 +4,7 @@ Models downloaded from official PaddlePaddle model registry, paddle-model-ecolog
 PP-OCRv5_mobile_det_onnx_infer.tar
 PP-OCRv5_mobile_rec_onnx_infer.tar
 PP-OCRv6_small_rec_onnx_infer.tar
+
+en_PP-OCRv5_mobile_rec — Apache-2.0 — https://github.com/PaddlePaddle/PaddleOCR
+Source: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/en_PP-OCRv5_mobile_rec_onnx_infer.tar
+ONNX SHA-256: b5f833dfc5d0eb71da397b4efa06ebeee9b431b690a47d6af40d77d8eabc557f

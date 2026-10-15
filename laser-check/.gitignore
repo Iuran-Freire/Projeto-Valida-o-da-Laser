@@ -1,6 +1,7 @@
 node_modules/
 .npm-cache/
 .sites-runtime/
+.tools/
 *.tar.gz
 *.log
 .env

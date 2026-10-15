@@ -14,8 +14,14 @@ for(const [source,target] of Object.entries(styles))await copyFile(`frontend/src
 // Remove only obsolete generated assets whose sources now have dedicated folders.
 for(const file of ['brand.css','brand-lg-label.css','style.css','positions-v1.css','positions-v2.css','icon.svg','icon-192.png','icon-512.png','inventus-power-logo.svg'])await unlink(`${output}/${file}`).catch(error=>{if(error.code!=='ENOENT')throw error;});
 for(const file of await readdir(output))if(/^app-.*\.js$/.test(file))await unlink(`${output}/${file}`);
+for(const file of await readdir(`${output}/assets`))if(/^serial-reader-.*\.js$/.test(file))await unlink(`${output}/assets/${file}`);
+const workerTemp=`${output}/assets/serial-reader-build.js`;
+await build({entryPoints:['frontend/src/ocr/serial-reader-worker.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:workerTemp,minify:true,legalComments:'eof'});
+const workerHash=createHash('sha256').update(await readFile(workerTemp)).digest('hex').slice(0,12);
+const workerAsset=`assets/serial-reader-${workerHash}.js`;
+await rename(workerTemp,`${output}/${workerAsset}`);
 
-await build({entryPoints:['frontend/src/app.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:`${output}/${appBuild}`,minify:true,legalComments:'eof',external:['fs','path','crypto','module']});
+await build({entryPoints:['frontend/src/app.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:`${output}/${appBuild}`,minify:true,legalComments:'eof',external:['fs','path','crypto','module'],define:{__SERIAL_WORKER__:JSON.stringify('./'+workerAsset)}});
 const appHash=createHash('sha256').update(await readFile(`${output}/${appBuild}`)).digest('hex').slice(0,12);
 const appAsset=`app-${appHash}.js`;
 await rename(`${output}/${appBuild}`,`${output}/${appAsset}`);
@@ -30,6 +36,7 @@ for(const file of await readdir('node_modules/tesseract.js-core'))if(file.endsWi
 await copyFile('node_modules/@tesseract.js-data/eng/4.0.0/eng.traineddata.gz',`${output}/vendor/eng.traineddata.gz`);
 for(const file of await readdir('node_modules/@paddleocr/paddleocr-js/dist/assets'))if(file.endsWith('.js'))await copyFile(`node_modules/@paddleocr/paddleocr-js/dist/assets/${file}`,`${output}/assets/${file}`);
 for(const file of ['ort-wasm-simd-threaded.jsep.mjs','ort-wasm-simd-threaded.jsep.wasm'])await copyFile(`node_modules/onnxruntime-web/dist/${file}`,`${output}/vendor/paddle/${file}`);
+for(const file of ['ort-wasm-simd-threaded.mjs','ort-wasm-simd-threaded.wasm'])await copyFile(`node_modules/onnxruntime-web/dist/${file}`,`${output}/vendor/paddle/${file}`);
 
 async function walk(dir){
   const result=[];
