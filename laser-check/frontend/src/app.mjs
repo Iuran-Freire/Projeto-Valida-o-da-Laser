@@ -1,4 +1,4 @@
-import {OPPO_45W_ID,OPPO_PREFIX,inspectOPPOLabel,extractOPPOPrinted} from '../../shared/models/oppo-45w.mjs';
+import {OPPO_45W_ID,OPPO_PREFIX,inspectOPPOLabel,extractOPPOPrinted,oppoManufacturerAmbiguity} from '../../shared/models/oppo-45w.mjs';
 import { readingComparison, readingResultNotice } from "./reading-view.mjs";
 import { createLGQRDetails } from "./inspection/lg-qr-details.mjs";
 import { selectLGPrintedText } from "./ocr/lg-label-text.mjs";
@@ -1220,12 +1220,12 @@ function updateReview() {
     $("#i-review strong").textContent =
       `Confira ${ambiguity.read} / ${ambiguity.expected} na posição ${ambiguity.position}`;
     $("#i-review p").textContent =
-      `O OCR leu ${ambiguity.read}, mas o padrão exige ${ambiguity.expected} nesta posição. Confira a foto e a peça antes de corrigir. Outras divergências continuarão visíveis.`;
+      `O OCR leu ${ambiguity.read} e o código 2D contém ${ambiguity.expected} nesta posição. Amplie a foto e confira a impressão na peça. Só aplique a correção se a peça mostrar ${ambiguity.expected}. Outras divergências continuarão visíveis.`;
     $("#i-correct").textContent =
-      `Corrigir OCR: ${ambiguity.read} → ${ambiguity.expected}`;
+      `Conferi na peça: corrigir ${ambiguity.read} → ${ambiguity.expected}`;
   }
   $("#i-correct").disabled =
-    !reviewOCR || !$("#confirmed").checked || busy || saved;
+    !reviewOCR || !$("#confirmed").checked || busy || saving || saved;
   const style = {
     COINCIDE: "match",
     DIVERGENTE: "mismatch",
@@ -1313,6 +1313,12 @@ for (const choice of document.querySelectorAll('input[name="visual-decision"]'))
     update();
   });
 $("#i-correct").onclick = () => {
+  if(busy||saving||saved||!$("#confirmed").checked)return;
+  if(selectedModel===OPPO_45W_ID){
+    const text=$("#ocr").value,serial=extractOPPOPrinted(text),ambiguity=oppoManufacturerAmbiguity(text),index=text.indexOf(serial);
+    if(busy||saved||!$("#confirmed").checked||!ambiguity||index<0||text.indexOf(serial,index+1)>=0)return;
+    $("#ocr").value=text.slice(0,index)+"I"+serial.slice(1)+text.slice(index+serial.length);ocrReliable=false;saved=false;$("#confirmed").checked=false;$("#save-message").textContent="Correção manual do primeiro caractere aplicada. Confira e confirme novamente. O OCR original foi preservado.";update();return;
+  }
   const result = inspect(
     $("#qr").value,
     $("#ocr").value,
@@ -3815,7 +3821,9 @@ function updateOPPO() {
   $("#confirmed-label").textContent =
     "Conferi o Data Matrix, a série impressa e a qualidade da etiqueta na foto e na peça; confirmo este registro.";
   renderVisualPanel();
-  $("#i-review").hidden = true;
+  const ambiguity=oppoManufacturerAmbiguity($('#ocr').value);
+  $('#i-review').hidden=!ambiguity;
+  if(ambiguity){$('#i-review strong').textContent='Confira o primeiro caractere: I ou 1';$('#i-review p').textContent='O OCR leu 1, mas o fabricante OPPO exige a letra I. Amplie a foto e confira a peça. Se for I, marque a conferência e aplique a correção abaixo. Os demais caracteres serão mantidos.';$('#i-correct').textContent='Confirmei na peça: corrigir 1 → I';$('#i-correct').disabled=busy||saving||saved||!$('#confirmed').checked;}
   const hasData = !!($("#qr").value.trim() || $("#ocr").value.trim()),
     preview = hasData && !$("#confirmed").checked;
   $("#result").className =
@@ -3922,7 +3930,7 @@ async function readOPPOPhoto(selectionOnly = false, detailed = false) {
     ocrAttempts = [];
     printSource =
       (detailed ? "OCR detalhado" : "OCR rápido") + " · " + captureSource;
-    message("Lendo a SN impresso na gravação…");
+    message("Lendo o SN impresso na gravação…");
     try {
       const region = { x: 0, y: 0, w: canvas.width, h: canvas.height };
       ocrAttempts = await readPrintedSerial(
@@ -3951,7 +3959,7 @@ async function readOPPOPhoto(selectionOnly = false, detailed = false) {
       const count = best?.serial
         ? options.filter((option) => option.serial === best.serial).length
         : 0;
-      ocrReliable = !!best?.serial && count >= 2 && confidence >= 70;
+      ocrReliable = !!best?.serial && !oppoManufacturerAmbiguity(best.serial) && count >= 2 && options.filter(option=>option.serial===best.serial).every(option=>option.score>=70);
       $("#confidence").textContent =
         "OCR · " +
         count +

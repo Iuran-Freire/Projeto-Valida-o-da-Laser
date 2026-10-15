@@ -24,7 +24,9 @@ export function inspect(qr,ocr,reliable,visuallyConfirmed=false,shift='',model=D
   const ambiguousOIndexes=result.profile?.codeValid?result.profile.positions.filter(item=>item.code==='0'&&item.print==='O').map(item=>item.position-1):[];
   const ambiguousO=ambiguousOIndexes.length>0;
   const onlyAmbiguousO=ambiguousO&&result.profile.positions.every(item=>item.match||ambiguousOIndexes.includes(item.position-1))&&result.profile.printIssues.every(issue=>ambiguousOIndexes.some(index=>issue.startsWith(`posição ${index+1} `)));
-  const ocrAmbiguity=ambiguousI?{index:11,position:12,read:'1',expected:'I'}:ambiguousOIndexes.length===1?{index:ambiguousOIndexes[0],position:ambiguousOIndexes[0]+1,read:'O',expected:'0'}:null;
+  const ambiguousSPositions=result.profile?.codeValid?result.profile.positions.filter(item=>item.code==='5'&&item.print==='S'||item.code==='S'&&item.print==='5'):[];
+  const firstS=ambiguousSPositions[0];
+  const ocrAmbiguity=ambiguousI?{index:11,position:12,read:'1',expected:'I'}:ambiguousOIndexes.length===1?{index:ambiguousOIndexes[0],position:ambiguousOIndexes[0]+1,read:'O',expected:'0'}:firstS?{index:firstS.position-1,position:firstS.position,read:firstS.print,expected:firstS.code}:null;
   const profileIssue=result.profile?[...result.profile.codeIssues.map(x=>'Código 2D: '+x),...result.profile.printIssues.map(x=>'Tampografia: '+x)].join('; '):'';
   const codeOnlyIssue=!result.profile&&invalidCode?codeCheck.issues.map(x=>'Código 2D: '+x).join('; ')+'. ':'';
   const pending=!result.code.serial||!result.print.serial||!reliable&&!visuallyConfirmed||(onlyAmbiguousI||onlyAmbiguousO)&&!visuallyConfirmed||shiftUnsupported;
@@ -32,10 +34,11 @@ export function inspect(qr,ocr,reliable,visuallyConfirmed=false,shift='',model=D
   const swapIssue=result.profile?.swappedDayShift?`Possível troca entre dia de fabricação (posição 6) e turno (posição 7): código ${result.code.serial[5]}${result.code.serial[6]}, tampografia ${result.print.serial[5]}${result.print.serial[6]}. `:'';
   const iIssue=ambiguousI?'O OCR leu 1 na posição 12, onde o padrão exige I. Confira esse caractere na peça. ':'';
   const oIssue=ambiguousO?`O OCR leu O na posição ${ambiguousOIndexes.map(index=>index+1).join(', ')}, onde o código 2D traz 0. O não é permitido nessa posição. Confira o caractere na peça. `:'';
+  const sIssue=ambiguousSPositions.length?`Possível confusão entre 5 e S nas posições ${ambiguousSPositions.map(item=>item.position).join(', ')}. Confira a impressão na peça; a diferença permanece até a conferência e eventual correção manual. `:'';
   const partIssue=partMismatch?`SEC CODE do código 2D incorreto: esperado ${partCheck.expected}; lido ${partCheck.actual}. `:'';
   const shiftIssue=shiftMismatch?`Código 2D: ${SHIFT_LABELS[shift]} exige ${shift} na posição 7; lido ${shiftCheck.actual}. `:shiftUnsupported&&!partMismatch?'Este formato de código 2D não permite validar o turno selecionado. ':'';
   const baseReason=!result.code.serial?'Número de série não identificado no código 2D.':!result.print.serial?'Número de série não identificado na tampografia.':!reliable&&!visuallyConfirmed?`${swapIssue}${iIssue}${oIssue}${profileIssue?profileIssue+'. ':''}${result.status==='COINCIDE'?'As séries exibidas coincidem. O OCR não confirmou a série com confiança em todas as tentativas.':'As séries exibidas são diferentes e o OCR não confirmou a leitura com confiança.'} Confira a série na peça e marque a conferência manual.`:swapIssue+iIssue+oIssue+((profileIssue||firstDifference)?profileIssue||`Diferença na posição ${firstDifference.position} (${firstDifference.meaning}): código ${firstDifference.code}, tampografia ${firstDifference.print}.`:'');
-  return {...result,status:partMismatch||shiftMismatch||invalidCode?'DIVERGENTE':pending?'PENDENTE':profileIssue?'DIVERGENTE':result.status,reason:partIssue+shiftIssue+codeOnlyIssue+baseReason,rawComparison:result.status,ambiguousI,ambiguousO,ocrAmbiguity,shiftCheck,partCheck};
+  return {...result,status:partMismatch||shiftMismatch||invalidCode?'DIVERGENTE':pending?'PENDENTE':profileIssue?'DIVERGENTE':result.status,reason:partIssue+shiftIssue+codeOnlyIssue+sIssue+baseReason,rawComparison:result.status,ambiguousI,ambiguousO,ocrAmbiguity,shiftCheck,partCheck};
 }
 export function nearbyRegion(position,width,height,model=DEFAULT_MODEL){
   if(getModelProfile(model).layout==='full')return {x:0,y:0,w:width,h:height};

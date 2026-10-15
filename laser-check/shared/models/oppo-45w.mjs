@@ -33,3 +33,5 @@ export function inspectOPPOLabel(codeRaw,printRaw,reliable=false,confirmed=false
  if(printed.valid&&!reliable&&!confirmed)missing.push('confirmação manual da leitura');
  return {code,printed,issues,missing,status:issues.length?'DIVERGENTE':missing.length?'PENDENTE':'COINCIDE',reason:issues.join(' ')||(missing.length?'Pendente: '+missing.join(', ')+'.':'Data Matrix e SN impresso coincidem.')};
 }
+
+export function oppoManufacturerAmbiguity(raw){const serial=extractOPPOPrinted(raw);return serial.startsWith('1')&&parseOPPOSerial('I'+serial.slice(1)).valid?{index:0,position:1,read:'1',expected:'I'}:null;}

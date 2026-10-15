@@ -1,6 +1,34 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {selectOCR,inspect,nearbyRegion} from '../shared/validation/inspection.mjs';
 const text='NUMERO DE SERIE: AB123456789012';
+
+test('M09031D destaca 5/S sem substituir caracteres nem aprovar a divergência',()=>{
+ const model='type-c-m09031d';
+ for(const [code,print] of [['R37L8TGM511IPA','R37L8TGMS11IPA'],['R37L8TGMS11IPA','R37L8TGM511IPA']]){
+  const raw='NUMERO DE SERIE:'+print;
+  for(const confirmed of [false,true]){
+   const result=inspect('GH44-03247A+'+code,raw,true,confirmed,'G',model);
+   assert.equal(result.status,'DIVERGENTE');
+   assert.equal(result.print.serial,print);
+   assert.deepEqual(result.ocrAmbiguity,{index:8,position:9,read:print[8],expected:code[8]});
+   assert.match(result.reason,/Possível confusão entre 5 e S/);
+  }
+ }
+});
+test('M09031D revisão de I não oculta a diferença entre 5 e S',()=>{
+ const qr='GH44-03247A+R37L8TGM511IPA',model='type-c-m09031d';
+ const both=inspect(qr,'NUMERO DE SERIE:R37L8TGMS111PA',true,false,'G',model);
+ assert.equal(both.status,'DIVERGENTE');assert.equal(both.ocrAmbiguity.position,12);
+ const fixedI=inspect(qr,'NUMERO DE SERIE:R37L8TGMS11IPA',false,true,'G',model);
+ assert.equal(fixedI.status,'DIVERGENTE');assert.equal(fixedI.ocrAmbiguity.position,9);
+ const fixedBoth=inspect(qr,'NUMERO DE SERIE:R37L8TGM511IPA',false,false,'G',model);
+ assert.equal(fixedBoth.status,'PENDENTE');
+ assert.equal(inspect(qr,'NUMERO DE SERIE:R37L8TGM511IPA',false,true,'G',model).status,'COINCIDE');
+});
+test('não sugere 5/S quando o próprio código está fora do padrão',()=>{
+ const result=inspect('GH44-03247A+X37L8TGM511IPA','NUMERO DE SERIE:R37L8TGMS11IPA',true,false,'G','type-c-m09031d');
+ assert.equal(result.status,'DIVERGENTE');assert.equal(result.ocrAmbiguity,null);
+});
 test('Duas leituras consistentes e confiáveis permitem comparação automática',()=>{const o=selectOCR([{text,confidence:90},{text,confidence:85}]);assert.equal(o.reliable,true);assert.equal(inspect('AB123456789012',o.text,o.reliable).status,'COINCIDE');assert.equal(inspect('ZZ123456789012',o.text,o.reliable).status,'DIVERGENTE');});
 test('OCR incerto nunca aprova mesmo se o texto coincidir',()=>{const o=selectOCR([{text,confidence:79},{text,confidence:95}]);assert.equal(inspect('AB123456789012',o.text,o.reliable).status,'PENDENTE');});
 test('Duas leituras diferentes ficam pendentes e preservam a candidata',()=>{const o=selectOCR([{text,confidence:95},{text:'NUMERO DE SERIE: AZ123456789012',confidence:90}]);const result=inspect('AB123456789012',o.text,o.reliable);assert.equal(result.status,'PENDENTE');assert.equal(result.print.serial,'AB123456789012');});
