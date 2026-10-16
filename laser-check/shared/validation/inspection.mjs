@@ -1,10 +1,11 @@
 import {compare,extractPrint} from './compare.mjs';
+import {compareOCREvidence} from './ocr-evidence.mjs';
 import {validateSerialPositions,checkCodeShift,checkSecCode,usesProfile,SHIFT_LABELS,DEFAULT_MODEL,getModelProfile} from '../models/serial-profile.mjs';
 // OCR candidates are selected without consulting the barcode's expected serial.
 export function selectOCR(attempts,profileEnabled=false){
   const model=typeof profileEnabled==='string'?profileEnabled:DEFAULT_MODEL;
   const score=attempt=>{const serial=extractPrint(attempt.text).serial;return [Number(!!serial),Number(profileEnabled&&!!serial&&validateSerialPositions(serial,model).valid),Math.min(attempt.text.length,100),attempt.confidence]};
-  const ranked=[...attempts].sort((a,b)=>{const x=score(a),y=score(b);return y[0]-x[0]||y[1]-x[1]||y[2]-x[2]||y[3]-x[3]});
+  const ranked=[...attempts].sort((a,b)=>{const x=score(a),y=score(b);return y[0]-x[0]||y[1]-x[1]||compareOCREvidence(a,b)||y[2]-x[2]||y[3]-x[3]});
   const best=ranked[0]||{text:'',confidence:0};
   const serial=extractPrint(best.text).serial;
   const reliable=!!serial&&attempts.length>=2&&attempts.every(a=>!a.forceManualReview&&extractPrint(a.text).serial===serial&&a.confidence>=80)&&(!profileEnabled||validateSerialPositions(serial,model).valid);

@@ -1,0 +1,13 @@
+{
+  "source": "en_PP-OCRv5_mobile_rec",
+  "source_sha256": "b5f833dfc5d0eb71da397b4efa06ebeee9b431b690a47d6af40d77d8eabc557f",
+  "sha256": "aba5bbb30c15e47cc893b53b933ae4524042fc40929272b32213122d7f23f04f",
+  "bytes": 2117706,
+  "weights": "per-channel symmetric INT8, Conv and MatMul",
+  "activations": "FLOAT32",
+  "tools": {
+    "onnx": "1.23.2",
+    "onnxruntime": "1.31.0"
+  },
+  "reproduce": "python scripts/quantize-serial-reader.py"
+}

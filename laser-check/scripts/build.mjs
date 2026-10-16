@@ -14,14 +14,19 @@ for(const [source,target] of Object.entries(styles))await copyFile(`frontend/src
 // Remove only obsolete generated assets whose sources now have dedicated folders.
 for(const file of ['brand.css','brand-lg-label.css','style.css','positions-v1.css','positions-v2.css','icon.svg','icon-192.png','icon-512.png','inventus-power-logo.svg'])await unlink(`${output}/${file}`).catch(error=>{if(error.code!=='ENOENT')throw error;});
 for(const file of await readdir(output))if(/^app-.*\.js$/.test(file))await unlink(`${output}/${file}`);
-for(const file of await readdir(`${output}/assets`))if(/^serial-reader-.*\.js$/.test(file))await unlink(`${output}/assets/${file}`);
+for(const file of await readdir(`${output}/assets`))if(/^(serial-reader|paddle-reader)-.*\.js$/.test(file))await unlink(`${output}/assets/${file}`);
+const paddleTemp=`${output}/assets/paddle-reader-build.js`;
+await build({entryPoints:['frontend/src/ocr/paddle-worker.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:paddleTemp,minify:true,legalComments:'eof',external:['fs','path','crypto','module']});
+const paddleHash=createHash('sha256').update(await readFile(paddleTemp)).digest('hex').slice(0,12);
+const paddleAsset=`assets/paddle-reader-${paddleHash}.js`;
+await rename(paddleTemp,`${output}/${paddleAsset}`);
 const workerTemp=`${output}/assets/serial-reader-build.js`;
 await build({entryPoints:['frontend/src/ocr/serial-reader-worker.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:workerTemp,minify:true,legalComments:'eof'});
 const workerHash=createHash('sha256').update(await readFile(workerTemp)).digest('hex').slice(0,12);
 const workerAsset=`assets/serial-reader-${workerHash}.js`;
 await rename(workerTemp,`${output}/${workerAsset}`);
 
-await build({entryPoints:['frontend/src/app.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:`${output}/${appBuild}`,minify:true,legalComments:'eof',external:['fs','path','crypto','module'],define:{__SERIAL_WORKER__:JSON.stringify('./'+workerAsset)}});
+await build({entryPoints:['frontend/src/app.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:`${output}/${appBuild}`,minify:true,legalComments:'eof',external:['fs','path','crypto','module'],define:{__SERIAL_WORKER__:JSON.stringify('./'+workerAsset),__PADDLE_WORKER__:JSON.stringify('./'+paddleAsset)}});
 const appHash=createHash('sha256').update(await readFile(`${output}/${appBuild}`)).digest('hex').slice(0,12);
 const appAsset=`app-${appHash}.js`;
 await rename(`${output}/${appBuild}`,`${output}/${appAsset}`);

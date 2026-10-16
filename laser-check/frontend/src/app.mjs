@@ -16,6 +16,9 @@ import {
   nearbyRegion,
 } from "../../shared/validation/inspection.mjs";
 import { readPrintedSerial } from "./ocr/paddle-reader.mjs";
+import { modelReaderOptions } from "./ocr/model-reader-options.mjs";
+import {diagnosticRegion,diagnosticCrop,readingDiagnostic} from './ocr/reading-diagnostic.mjs';
+import {compareOCREvidence} from '../../shared/validation/ocr-evidence.mjs';
 import { readCodeWithRetry } from "./ocr/m09031d-recovery.mjs";
 import {
   saveRecordWithPhoto,
@@ -1116,6 +1119,7 @@ function updateCaptureActions() {
   camera.classList.remove("secondary-capture");
 }
 function update() {
+  $('#reading-diagnostic').disabled=busy||!photoBase;
   const result = updateReview(),
     panel = $("#live-reading");
   const notice = readingResultNotice(result, $("#confirmed").checked);
@@ -1612,6 +1616,7 @@ async function readA08Photo(selectionOnly = false, detailed = false) {
         (text) => message(text),
         false,
         detailed,
+        modelReaderOptions(selectedModel),
       );
       const score = (item) =>
         Math.max(
@@ -1624,7 +1629,7 @@ async function readA08Photo(selectionOnly = false, detailed = false) {
           Number(!!parsed(b).date) +
             Number(!!parsed(b).printCode) -
             Number(!!parsed(a).date) -
-            Number(!!parsed(a).printCode) || score(b) - score(a),
+            Number(!!parsed(a).printCode) || compareOCREvidence(a,b) || score(b) - score(a),
       );
       const best = ranked[0] || { fullText: "", text: "", lines: [] };
       originalOCR = best.fullText || best.text;
@@ -1651,6 +1656,7 @@ async function readA08Photo(selectionOnly = false, detailed = false) {
             );
           })
           .every((item) => score(item) >= 70);
+      ocrReliable = ocrReliable && !ocrAttempts.some(item=>item.glyphReview);
       $("#confidence").textContent =
         "OCR · " +
         agreements +
@@ -1764,6 +1770,7 @@ async function readLGPhoto(selectionOnly = false, detailed = false) {
         (text) => message(text),
         false,
         detailed,
+        modelReaderOptions(selectedModel),
       );
       const score = (item) =>
         Math.max(
@@ -1775,7 +1782,7 @@ async function readLGPhoto(selectionOnly = false, detailed = false) {
       const ranked = [...ocrAttempts].sort(
         (a, b) =>
           Number(parseLGPrinted(b.text).valid) -
-            Number(parseLGPrinted(a.text).valid) || score(b) - score(a),
+            Number(parseLGPrinted(a.text).valid) || compareOCREvidence(a,b) || score(b) - score(a),
       );
       const best = ranked[0] || { text: "", confidence: 0 };
       originalOCR = selectLGPrintedText(best.fullText || best.text);
@@ -1793,6 +1800,7 @@ async function readLGPhoto(selectionOnly = false, detailed = false) {
         ocrAttempts
           .filter((item) => parseLGPrinted(item.text).partNo === part)
           .every((item) => score(item) >= 80);
+      ocrReliable = ocrReliable && !ocrAttempts.some(item=>item.glyphReview);
       $("#confidence").textContent =
         "OCR · " +
         agreements +
@@ -1889,6 +1897,7 @@ async function readFrecomPhoto(selectionOnly = false, detailed = false) {
         (text) => message(text),
         false,
         detailed,
+        modelReaderOptions(selectedModel),
       );
       const options = ocrAttempts.map((item) => ({
         item,
@@ -1899,7 +1908,7 @@ async function readFrecomPhoto(selectionOnly = false, detailed = false) {
         ),
       }));
       options.sort(
-        (a, b) => Number(!!b.code) - Number(!!a.code) || b.score - a.score,
+        (a, b) => Number(!!b.code) - Number(!!a.code) || compareOCREvidence(a.item,b.item) || b.score - a.score,
       );
       const best = options[0];
       originalOCR = best?.code || best?.item.fullText || best?.item.text || "";
@@ -1909,6 +1918,7 @@ async function readFrecomPhoto(selectionOnly = false, detailed = false) {
         ? options.filter((option) => option.code === best.code).length
         : 0;
       ocrReliable = !!best?.code && count >= 2 && confidence >= 70;
+      ocrReliable = ocrReliable && !ocrAttempts.some(item=>item.glyphReview);
       $("#confidence").textContent =
         "OCR · " +
         count +
@@ -1997,6 +2007,7 @@ async function readLGPSUPhoto(selectionOnly = false, detailed = false) {
         (text) => message(text),
         false,
         detailed,
+        modelReaderOptions(selectedModel),
       );
       const options = ocrAttempts.map((item) => ({
         item,
@@ -2007,7 +2018,7 @@ async function readLGPSUPhoto(selectionOnly = false, detailed = false) {
         ),
       }));
       options.sort(
-        (a, b) => Number(!!b.code) - Number(!!a.code) || b.score - a.score,
+        (a, b) => Number(!!b.code) - Number(!!a.code) || compareOCREvidence(a.item,b.item) || b.score - a.score,
       );
       const best = options[0];
       originalOCR = best?.code || best?.item.fullText || best?.item.text || "";
@@ -2017,6 +2028,7 @@ async function readLGPSUPhoto(selectionOnly = false, detailed = false) {
         ? options.filter((option) => option.code === best.code).length
         : 0;
       ocrReliable = !!best?.code && count >= 2 && confidence >= 70;
+      ocrReliable = ocrReliable && !ocrAttempts.some(item=>item.glyphReview);
       $("#confidence").textContent =
         "OCR · " +
         count +
@@ -2111,6 +2123,7 @@ async function readFrecomDMPhoto(selectionOnly = false, detailed = false) {
         (text) => message(text),
         false,
         detailed,
+        modelReaderOptions(selectedModel),
       );
       const options = ocrAttempts.map((item) => ({
         item,
@@ -2121,7 +2134,7 @@ async function readFrecomDMPhoto(selectionOnly = false, detailed = false) {
         ),
       }));
       options.sort(
-        (a, b) => Number(!!b.serial) - Number(!!a.serial) || b.score - a.score,
+        (a, b) => Number(!!b.serial) - Number(!!a.serial) || compareOCREvidence(a.item,b.item) || b.score - a.score,
       );
       const best = options[0];
       originalOCR =
@@ -2132,6 +2145,7 @@ async function readFrecomDMPhoto(selectionOnly = false, detailed = false) {
         ? options.filter((option) => option.serial === best.serial).length
         : 0;
       ocrReliable = !!best?.serial && count >= 2 && confidence >= 70;
+      ocrReliable = ocrReliable && !ocrAttempts.some(item=>item.glyphReview);
       $("#confidence").textContent =
         "OCR · " +
         count +
@@ -2249,11 +2263,7 @@ async function readPhoto(selectionOnly, detailed = false) {
         (text) => message(text),
         true,
         detailed,
-        {
-          directSerialReader:selectedModel === "type-c-m09031d",
-          searchSmallSerial:selectedModel === "type-c-m09031d",
-          allowUnlabelledSerial:selectedModel === "type-c-m09031d",
-        },
+        modelReaderOptions(selectedModel),
       );
       ocrEngineFailed = false;
       $("#detail-read").textContent = "Leitura detalhada";
@@ -2264,6 +2274,7 @@ async function readPhoto(selectionOnly, detailed = false) {
       originalOCR = best.rawText ?? best.text;
       confidence = best.confidence;
       ocrReliable = best.reliable;
+      ocrReliable = ocrReliable && !ocrAttempts.some(item=>item.glyphReview);
       $("#ocr").value = best.text;
       const bestSerial = extractPrint(best.text).serial,
         agreements = bestSerial
@@ -2319,6 +2330,20 @@ async function readPhoto(selectionOnly, detailed = false) {
     "Leitura pronta, ainda não registrada. Amplie a foto, avalie a impressão e confirme antes de registrar.";
 }
 $("#detail-read").onclick = () => readPhoto(true, true);
+$('#reading-diagnostic').onclick=()=>{
+ if(busy||!photoBase)return;
+ try{
+  const region=diagnosticRegion(ocrAttempts,photoBase.width,photoBase.height);
+  const diagnostic=readingDiagnostic({model:selectedModel,build:document.querySelector('script[type="module"][src]')?.src||'',
+   captureSource,code:$('#qr').value,printed:$('#ocr').value,attempts:ocrAttempts,
+   photo:{width:photoBase.width,height:photoBase.height},crop:diagnosticCrop(photoBase,region),
+   environment:{userAgent:navigator.userAgent,language:navigator.language,hardwareConcurrency:navigator.hardwareConcurrency,deviceMemory:navigator.deviceMemory},
+   message:$('#scan-message').textContent});
+  const blob=new Blob([JSON.stringify(diagnostic)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='diagnostico-leitura-'+Date.now()+'.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+ }catch{message('Não foi possível gerar o diagnóstico. Tente novamente.',true);}
+};
 $("#new").onclick = () => {
   if (saving) return;
   window.location.reload();
@@ -3948,6 +3973,7 @@ async function readOPPOPhoto(selectionOnly = false, detailed = false) {
         (text) => message(text),
         false,
         detailed,
+        modelReaderOptions(selectedModel),
       );
       const options = ocrAttempts.map((item) => ({
         item,
@@ -3958,7 +3984,7 @@ async function readOPPOPhoto(selectionOnly = false, detailed = false) {
         ),
       }));
       options.sort(
-        (a, b) => Number(!!b.serial) - Number(!!a.serial) || b.score - a.score,
+        (a, b) => Number(!!b.serial) - Number(!!a.serial) || compareOCREvidence(a.item,b.item) || b.score - a.score,
       );
       const best = options[0];
       originalOCR =
@@ -3969,6 +3995,7 @@ async function readOPPOPhoto(selectionOnly = false, detailed = false) {
         ? options.filter((option) => option.serial === best.serial).length
         : 0;
       ocrReliable = !!best?.serial && !oppoManufacturerAmbiguity(best.serial) && count >= 2 && options.filter(option=>option.serial===best.serial).every(option=>option.score>=70);
+      ocrReliable = ocrReliable && !ocrAttempts.some(item=>item.glyphReview);
       $("#confidence").textContent =
         "OCR · " +
         count +

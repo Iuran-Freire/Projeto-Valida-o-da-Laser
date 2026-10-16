@@ -24,3 +24,20 @@ test('recorte da foto real é calculado pela linha localizada, sem conteúdo do 
   lines:[{text:'NUMERO DE SERIE : R37L8TGFMS TPA:',poly:[[101,75],[889,75],[889,124],[101,124]]}]};
  assert.deepEqual(refinementRegions([attempt,attempt],{width:1530,height:2040}),[{x:255,y:1414,w:771,h:64}]);
 });
+test('confiança por caractere detecta competição I/1 e S/5 sem substituir o vencedor',()=>{
+ const dictionary=['I','1','S','5'],data=new Float32Array([
+  0,.51,.48,0,0,
+  0,.95,.03,0,0,
+  1,0,0,0,0,
+  0,0,0,.52,.47,
+  1,0,0,0,0,
+  0,0,0,.01,.98,
+ ]);
+ const result=decodeSerial(data,[1,6,5],dictionary);
+ assert.equal(result.text,'IS5');
+ assert.equal(result.glyphs[0].uncertain,false,'a evidência mais forte do mesmo caractere é usada');
+ assert.equal(result.glyphs[1].uncertain,true);
+ assert.equal(result.glyphs[1].alternative,'5');
+ assert.equal(result.glyphs[2].uncertain,false);
+ assert.equal(result.glyphs[1].index,1);
+});

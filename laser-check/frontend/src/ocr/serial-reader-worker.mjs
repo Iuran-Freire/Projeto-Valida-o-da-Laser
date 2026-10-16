@@ -5,10 +5,10 @@ ort.env.wasm.proxy=false;
 ort.env.wasm.wasmPaths=new URL('../vendor/paddle/',self.location.href).href;
 ort.env.logLevel='error';
 let initialized;
-async function engine(){
+async function engine(quantized=false){
  if(!initialized)initialized=(async()=>{
   const [model,vocabulary]=await Promise.all([
-   fetch(new URL('../vendor/paddle/serial-rec-en-v5.onnx',self.location.href)),
+   fetch(new URL('../vendor/paddle/'+(quantized?'serial-rec-en-v5-int8.onnx':'serial-rec-en-v5.onnx'),self.location.href)),
    fetch(new URL('../vendor/paddle/serial-rec-en-v5.json',self.location.href)),
   ]);
   if(!model.ok||!vocabulary.ok)throw new Error('Não foi possível carregar o leitor da série.');
@@ -21,7 +21,7 @@ async function engine(){
 }
 self.onmessage=async({data})=>{
  try{
-  const {session,dictionary}=await engine();
+  const {session,dictionary}=await engine(!!data.quantized);
   const outputs=await session.run({[session.inputNames[0]]:new ort.Tensor('float32',data.tensor,data.dims)});
   const output=outputs[session.outputNames[0]];
   const result=decodeSerial(output.data,output.dims,dictionary);

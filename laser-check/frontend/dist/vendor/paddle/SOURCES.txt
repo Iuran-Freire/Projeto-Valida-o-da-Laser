@@ -8,3 +8,8 @@ PP-OCRv6_small_rec_onnx_infer.tar
 en_PP-OCRv5_mobile_rec — Apache-2.0 — https://github.com/PaddlePaddle/PaddleOCR
 Source: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/en_PP-OCRv5_mobile_rec_onnx_infer.tar
 ONNX SHA-256: b5f833dfc5d0eb71da397b4efa06ebeee9b431b690a47d6af40d77d8eabc557f
+
+serial-rec-en-v5-int8.onnx: derived from the English model above using per-channel
+INT8 Conv/MatMul weights and DequantizeLinear; activations stay FLOAT32.
+Generated with scripts/quantize-serial-reader.py. Hashes and tool versions are
+recorded in serial-rec-en-v5-int8.provenance.json. Used for memory recovery only.
