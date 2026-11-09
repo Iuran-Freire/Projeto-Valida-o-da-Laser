@@ -1,3 +1,5 @@
+import {extractPrint} from '../../../shared/validation/compare.mjs';
+
 // A candidate comes only from printed pixels, never from the Data Matrix.
 // Preserve every character, including I/1 and S/5 differences.
 export function samsungSerialCandidate(text) {
@@ -18,4 +20,11 @@ export function samsungSerialSample(attempt) {
  const best=candidates.reduce((a,b)=>a.line.confidence>=b.line.confidence?a:b);
  return {...attempt,rawText:attempt.fullText,text:'NÚMERO DE SÉRIE: '+best.serial,
   confidence:best.line.confidence,serialLabelInferred:true,forceManualReview:true};
+}
+
+// Main reader: a normally labelled reading stays untouched. Only when the OCR
+// split or dropped "NÚMERO DE SÉRIE:" (or its colon) is the R37 line read from
+// the photo used, and then it always requires the inspector's confirmation.
+export function samsungUnlabelledSample(attempt) {
+ return extractPrint(attempt.text||'').serial?attempt:samsungSerialSample(attempt);
 }

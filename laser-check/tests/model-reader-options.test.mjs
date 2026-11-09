@@ -30,3 +30,10 @@ test('formatos OPPO, LG e Frecom não recebem regras de serial Samsung',()=>{
   assert.equal(!!opts.extractSerial('NUMERO DE SERIE:R37L8TGM511IPA'),false,model);
  }
 });
+test('polaridade da impressão: Type C preto com letra clara; 15W VE branco com letra escura',()=>{
+ assert.equal(modelReaderOptions('type-c').lightOnDark,true);
+ assert.equal(modelReaderOptions('type-c-m09031d').lightOnDark,true);
+ assert.equal(modelReaderOptions('15w-ve').lightOnDark,false);
+ // The Samsung serial rules still apply to the white 15W VE.
+ assert.equal(modelReaderOptions('15w-ve').allowUnlabelledSerial,true);
+});

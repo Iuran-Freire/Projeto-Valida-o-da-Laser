@@ -35,3 +35,14 @@ test('captura real A13: separa fabricante e série mesmo com intervalo estreito'
  assert.ok(bands[0].y+bands[0].h>=48,'não recorta a base dos caracteres');
  assert.ok(bands[0].w>=350,'preserva rótulo e todos os caracteres da série');
 });
+test('15W VE branco (foto real): impressão escura localiza a linha da série',async()=>{
+ const info=JSON.parse(await readFile(new URL('./fixtures/15w-ve-white-region.json',import.meta.url),'utf8'));
+ const gray=await readFile(new URL('./fixtures/15w-ve-white-region.gray',import.meta.url));
+ const {width,height}=info,pixels=new Uint8ClampedArray(width*height*4);
+ for(let p=0;p<width*height;p++){pixels[p*4]=pixels[p*4+1]=pixels[p*4+2]=gray[p];pixels[p*4+3]=255;}
+ const [top,bottom]=info.serialLine.y,[left,right]=info.serialLine.x;
+ const coversSerial=band=>band.y<=top+4&&band.y+band.h>=bottom-4&&band.x<=left+8&&band.x+band.w>=right;
+ assert.ok(printedRowBands(pixels,width,height,{lightOnDark:false,limit:10}).some(coversSerial));
+ // Treating this white charger as light-on-dark finds only blank plastic.
+ assert.equal(printedRowBands(pixels,width,height,{lightOnDark:true,limit:10}).some(coversSerial),false);
+});

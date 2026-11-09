@@ -2257,13 +2257,14 @@ async function readPhoto(selectionOnly, detailed = false) {
         canvas.height,
         selectedModel,
       );
+      const readerOptions = modelReaderOptions(selectedModel);
       ocrAttempts = await readPrintedSerial(
         canvas,
         region,
         (text) => message(text),
-        true,
+        readerOptions.lightOnDark,
         detailed,
-        modelReaderOptions(selectedModel),
+        readerOptions,
       );
       ocrEngineFailed = false;
       $("#detail-read").textContent = "Leitura detalhada";

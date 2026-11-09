@@ -1,5 +1,7 @@
 export function isMemoryError(error) {
-  return /failed to allocate|out of memory|cannot enlarge memory|could not allocate|allocation failed/i.test(String(error?.message || error));
+  // ONNX Runtime on weak phones (e.g. Samsung A13) reports C++ "std::bad_alloc"
+  // from OrtRun and "Aborted(OOM)" / "could not grow memory" from WebAssembly.
+  return /failed to allocate|out of memory|cannot enlarge memory|could not allocate|allocation failed|bad_alloc|Aborted\(OOM\)|could not grow memory|memory limit exceeded/i.test(String(error?.message || error));
 }
 
 export function readerFailureKind(error){
