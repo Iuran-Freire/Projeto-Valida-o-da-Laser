@@ -18,6 +18,14 @@ import {
 } from "../../shared/validation/inspection.mjs";
 import { readPrintedSerial } from "./ocr/paddle-reader.mjs";
 import { modelReaderOptions } from "./ocr/model-reader-options.mjs";
+import {
+  READ_STEPS,
+  STEP_TITLES,
+  createProgressLine,
+  formatElapsed,
+  interpretProgress,
+  stepSegment,
+} from "./reading-progress.mjs";
 import {diagnosticRegion,diagnosticCrop,readingDiagnostic} from './ocr/reading-diagnostic.mjs';
 import {compareOCREvidence} from '../../shared/validation/ocr-evidence.mjs';
 import { readCodeWithRetry } from "./ocr/m09031d-recovery.mjs";
@@ -133,44 +141,80 @@ function ocrErrorDetail(error) {
 const canvas = $("#photo"),
   ctx = canvas.getContext("2d", { willReadFrequently: true });
 let readActivityTimer = null,
-  readActivityStep = "";
-const readStepOrder = ["photo", "code", "text", "review"];
+  readActivityTick = null,
+  readActivityStep = "",
+  readActivityElapsed = 0;
+const readLine = createProgressLine();
+const FINISHED_STEPS = ["review", "waiting", "error"];
+// Progress line, clock and "do not close" hint of the floating reading panel.
+function renderReadActivity(finalValue = null) {
+  if (readLine.running()) readActivityElapsed = readLine.elapsed();
+  const value = finalValue ?? readLine.value();
+  const track = $("#read-activity-track");
+  track.firstElementChild.style.width = (value * 100).toFixed(1) + "%";
+  track.setAttribute("aria-valuenow", String(Math.round(value * 100)));
+  $("#read-activity-time").textContent = formatElapsed(readActivityElapsed);
+  $("#read-activity-hint").hidden = !(
+    readLine.running() &&
+    (readLine.slow() || readActivityElapsed > 15000)
+  );
+}
+function stopReadClock() {
+  clearInterval(readActivityTick);
+  readActivityTick = null;
+  if (readLine.running()) readActivityElapsed = readLine.elapsed();
+  readLine.stop();
+}
 function hideReadActivity() {
   clearTimeout(readActivityTimer);
   readActivityTimer = null;
+  stopReadClock();
   readActivityStep = "";
   $("#read-activity").hidden = true;
 }
-function setReadStage(step, detail = "") {
+function setReadStage(step, detail = "", info = null) {
   clearTimeout(readActivityTimer);
   readActivityTimer = null;
   const panel = $("#read-activity");
+  const finished = FINISHED_STEPS.includes(step);
+  // Never move back to an earlier step while the same reading runs.
+  if (
+    !finished &&
+    !FINISHED_STEPS.includes(readActivityStep) &&
+    READ_STEPS.indexOf(step) < READ_STEPS.indexOf(readActivityStep)
+  )
+    step = readActivityStep;
+  const segment = info || stepSegment(step);
+  if (!finished) {
+    if (!readLine.running() || FINISHED_STEPS.includes(readActivityStep) || !readActivityStep) {
+      readLine.start();
+      readActivityElapsed = 0;
+    }
+    if (segment) readLine.enter(segment);
+    if (!readActivityTick) readActivityTick = setInterval(() => renderReadActivity(), 250);
+  } else stopReadClock();
   panel.hidden = false;
   panel.dataset.stage = step;
   readActivityStep = step;
-  const title = {
-    photo: "Abrindo a foto",
-    code: "Lendo o código",
-    text: "Reconhecendo o texto",
-    review: "Leitura pronta para conferir",
-    waiting: "Primeira foto guardada",
-    error: "Não foi possível ler a foto",
-  }[step];
-  $("#read-activity-title").textContent = title;
+  $("#read-activity-title").textContent = finished
+    ? {
+        review: "Leitura pronta para conferir",
+        waiting: "Primeira foto guardada",
+        error: "Não foi possível ler a foto",
+      }[step]
+    : STEP_TITLES[step];
   $("#read-activity-detail").textContent =
     detail ||
+    segment?.detail ||
     {
-      photo: "Preparando a imagem para a leitura.",
-      code: "Procurando QR, Data Matrix ou código de barras.",
-      text: "Comparando as tentativas de leitura do texto.",
       review: "Confira os valores e a foto antes de registrar.",
       waiting: "Agora tire a segunda foto da peça.",
       error: "Confira a imagem e tente novamente.",
     }[step];
-  const current = step === "waiting" ? 0 : readStepOrder.indexOf(step);
+  const current = step === "waiting" ? 0 : READ_STEPS.indexOf(step);
   for (const item of panel.querySelectorAll("[data-step]")) {
-    const index = readStepOrder.indexOf(item.dataset.step);
-    item.classList.toggle("active", index === current);
+    const index = READ_STEPS.indexOf(item.dataset.step);
+    item.classList.toggle("active", index === current && step !== "review");
     item.classList.toggle(
       "done",
       step === "review" ||
@@ -178,22 +222,21 @@ function setReadStage(step, detail = "") {
         current > index,
     );
   }
-  if (step === "review" || step === "waiting" || step === "error")
-    readActivityTimer = setTimeout(hideReadActivity, 3000);
+  renderReadActivity(
+    step === "review" || step === "error" ? 1 : step === "waiting" ? 0.25 : null,
+  );
+  if (finished) readActivityTimer = setTimeout(hideReadActivity, 3000);
 }
 function message(text, error = false) {
+  // While reading, technical progress becomes a plain step on the panel.
+  const progress = busy && !error ? interpretProgress(text) : null;
   for (const selector of ["#scan-message", "#capture-feedback"]) {
     const node = $(selector);
-    node.textContent = text;
+    node.textContent = progress?.detail || text;
     node.classList.toggle("error", error);
+    node.classList.toggle("progress", !!progress);
   }
-  if (!busy || error) return;
-  const lower = text.toLowerCase();
-  if (/^(lendo|localizando|reconhecendo)/.test(lower)) {
-    if (/texto|impress|série|linha|ocr|data e|data |reconhecendo/.test(lower))
-      setReadStage("text", text);
-    else if (readActivityStep !== "text") setReadStage("code", text);
-  }
+  if (progress) setReadStage(progress.step, progress.detail, progress);
 }
 function setBusy(value) {
   busy = value;
@@ -1138,12 +1181,14 @@ function update() {
     $("#result p").textContent = notice.description;
   }
   if (busy) {
+    // While reading, show that it is in progress instead of a stale result.
+    $("#result").className = "result reading";
+    $("#result .result-symbol").textContent = "";
+    $("#result strong").textContent = "Leitura em andamento";
+    $("#result p").textContent =
+      "Aguarde. O resultado aparece aqui quando a leitura terminar.";
     panel.replaceChildren();
-    const text = document.createElement("p");
-    text.textContent =
-      "Leitura em andamento. Aguarde para conferir os valores.";
-    panel.append(text);
-    panel.hidden = false;
+    panel.hidden = true;
   } else {
     const sources = isLGModel(selectedModel)
       ? [
