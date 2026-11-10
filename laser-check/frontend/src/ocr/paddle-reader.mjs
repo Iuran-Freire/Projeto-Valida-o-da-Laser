@@ -43,7 +43,10 @@ export async function readPrintedSerial(source,region,onProgress,lightOnDark=fal
  return recoverReader(
   async()=>{
    onProgress('Preparando leitor principal da tampografia…');
-   const reader=await engine();
+   // Only the first use downloads the reader; say so instead of looking stuck.
+   const slow=setTimeout(()=>onProgress('Preparando leitor principal · na primeira vez o download pode levar alguns minutos…'),15000);
+   let reader;
+   try{reader=await engine();}finally{clearTimeout(slow);}
    try{return await readAttempts(reader,'PP-OCRv5_mobile_rec',source,region,onProgress,lightOnDark,detailed,detailed?options:{allowUnlabelledSerial:options.allowUnlabelledSerial});}
    catch(error){await releasePrimary();throw error;}
   },

@@ -1,5 +1,7 @@
 // This page-side adapter must never import the Paddle SDK/OpenCV.
-export async function createPaddleReader(options,{createWorker,timeoutMs=60000}={}){
+// The first start downloads the models and runtime (tens of MB) inside the
+// worker, so it gets more time than each reading; a reading keeps 60 s.
+export async function createPaddleReader(options,{createWorker,timeoutMs=60000,initTimeoutMs=180000}={}){
  const worker=createWorker?createWorker():new Worker(new URL(__PADDLE_WORKER__,document.baseURI),{type:'module'});
  const pending=new Map();let nextId=1,closed=false;
  const stop=(error=new Error('Leitor principal encerrado.'))=>{
@@ -16,13 +18,13 @@ export async function createPaddleReader(options,{createWorker,timeoutMs=60000}=
  };
  worker.onerror=event=>{event.preventDefault?.();stop(new Error(event.message||'Falha no processamento WebAssembly do leitor principal.'));};
  worker.onmessageerror=()=>stop(new Error('Falha no processamento WebAssembly: resposta inválida do leitor.'));
- const request=(type,payload,transfer=[])=>new Promise((resolve,reject)=>{
+ const request=(type,payload,transfer=[],limit=timeoutMs,timeoutMessage='O leitor principal demorou a responder (timeout).')=>new Promise((resolve,reject)=>{
   if(closed){reject(new Error('Leitor principal encerrado.'));return;}
-  const id=nextId++,timer=setTimeout(()=>stop(new Error('O leitor principal demorou a responder (timeout).')),timeoutMs);
+  const id=nextId++,timer=setTimeout(()=>stop(new Error(timeoutMessage)),limit);
   pending.set(id,{resolve,reject,timer});
   try{worker.postMessage({id,type,...payload},transfer);}catch(error){stop(error);}
  });
- try{await request('init',{options});}
+ try{await request('init',{options},[],initTimeoutMs,'O leitor principal demorou a carregar (timeout).');}
  catch(error){stop(error);throw error;}
  return {
   predict:async(input,params)=>{

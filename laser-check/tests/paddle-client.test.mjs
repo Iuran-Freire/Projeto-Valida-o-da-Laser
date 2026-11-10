@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createPaddleReader} from '../frontend/src/ocr/paddle-client.mjs';
+import {readerFailureKind} from '../frontend/src/ocr/reader-recovery.mjs';
 
 function mockWorker(handle){return {terminated:0,posts:[],postMessage(data,transfer){this.posts.push({data,transfer});queueMicrotask(()=>handle(this,data));},terminate(){this.terminated++;}};}
 const success=(worker,data,result)=>worker.onmessage({data:{id:data.id,ok:true,result}});
@@ -28,7 +29,7 @@ test('erro não capturado e timeout também liberam o worker',async()=>{
  const errorWorker=mockWorker(w=>w.onerror({message:'Uncaught RangeError: could not allocate memory'}));
  await assert.rejects(createPaddleReader({}, {createWorker:()=>errorWorker}),/allocate memory/);assert.equal(errorWorker.terminated,1);
  const silent=mockWorker(()=>{});
- await assert.rejects(createPaddleReader({}, {createWorker:()=>silent,timeoutMs:10}),/timeout/);assert.equal(silent.terminated,1);
+ await assert.rejects(createPaddleReader({}, {createWorker:()=>silent,timeoutMs:10,initTimeoutMs:10}),/timeout/);assert.equal(silent.terminated,1);
 });
 
 test('falha durante a previsão encerra a memória do principal',async()=>{
@@ -36,4 +37,22 @@ test('falha durante a previsão encerra a memória do principal',async()=>{
  const reader=await createPaddleReader({}, {createWorker:()=>worker});
  const input={width:1,height:1,getContext:()=>({getImageData:()=>({data:new Uint8ClampedArray(4)})})};
  await assert.rejects(reader.predict(input,{}),/failed to allocate/);assert.equal(worker.terminated,1);
+});
+
+test('primeiro carregamento (download do leitor) tem mais tempo que cada leitura',async()=>{
+ const later=(ms,fn)=>setTimeout(fn,ms);
+ // Init answers after 60 ms: longer than a reading may take, within the start-up limit.
+ const worker=mockWorker((w,d)=>{if(d.type==='init')later(60,()=>success(w,d,{ready:true}));});
+ const reader=await createPaddleReader({}, {createWorker:()=>worker,timeoutMs:20,initTimeoutMs:500});
+ assert.equal(worker.terminated,0);
+ // A reading that never answers still stops at the reading limit.
+ const input={width:1,height:1,getContext:()=>({getImageData:()=>({data:new Uint8ClampedArray(4)})})};
+ await assert.rejects(reader.predict(input,{}),/demorou a responder/);assert.equal(worker.terminated,1);
+});
+
+test('carregamento que excede o prazo encerra o worker e vale como tempo esgotado',async()=>{
+ const silent=mockWorker(()=>{});
+ const error=await createPaddleReader({}, {createWorker:()=>silent,timeoutMs:500,initTimeoutMs:20}).catch(error=>error);
+ assert.match(error.message,/demorou a carregar/);assert.equal(silent.terminated,1);
+ assert.equal(readerFailureKind(error),'timeout');
 });
