@@ -6,13 +6,18 @@ import {refinePrintedSerial} from './light-serial-reader.mjs';
 import {extractPrint} from '../../../shared/validation/compare.mjs';
 import {enhanceGlyphPixels,markGlyphReview} from './glyph-review.mjs';
 import {createPaddleReader} from './paddle-client.mjs';
+import {isMemoryError} from './reader-recovery.mjs';
+// Main reader input: 1200 px; after a memory failure while reading (weak
+// phones such as the A13) it retries once at 800 px and keeps that size.
+const PRIMARY_SIDE=1200,REDUCED_PRIMARY_SIDE=800;
+let primarySide=PRIMARY_SIDE;
 const url=p=>new URL(p,document.baseURI).href;
 let readerPromise=null;
 const recoverReader=createReaderRecovery();
 export function preloadPrintedReader(){return engine();}
 function engine(){if(!readerPromise)readerPromise=createPaddleReader({textDetectionModelName:'PP-OCRv5_mobile_det',textRecognitionModelName:'PP-OCRv5_mobile_rec',textDetectionModelAsset:{url:url('./vendor/paddle/det.tar')},textRecognitionModelAsset:{url:url('./vendor/paddle/rec.tar')},ortOptions:{backend:'wasm',numThreads:1,wasmPaths:url('./vendor/paddle/')}}).catch(error=>{readerPromise=null;throw error});return readerPromise;}
-function cropCanvas(source,region,variant='original',lightOnDark=false,maxScale=2){
- const c=document.createElement('canvas');const scale=Math.min(maxScale,1200/Math.max(region.w,region.h));
+function cropCanvas(source,region,variant='original',lightOnDark=false,maxScale=2,maxSide=PRIMARY_SIDE){
+ const c=document.createElement('canvas');const scale=Math.min(maxScale,maxSide/Math.max(region.w,region.h));
  c.width=Math.max(1,Math.round(region.w*scale));c.height=Math.max(1,Math.round(region.h*scale));
  const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(source,region.x,region.y,region.w,region.h,0,0,c.width,c.height);
  if(variant.startsWith('caracteres-')){
@@ -47,8 +52,20 @@ export async function readPrintedSerial(source,region,onProgress,lightOnDark=fal
    const slow=setTimeout(()=>onProgress('Preparando leitor principal · na primeira vez o download pode levar alguns minutos…'),15000);
    let reader;
    try{reader=await engine();}finally{clearTimeout(slow);}
-   try{return await readAttempts(reader,'PP-OCRv5_mobile_rec',source,region,onProgress,lightOnDark,detailed,detailed?options:{allowUnlabelledSerial:options.allowUnlabelledSerial});}
-   catch(error){await releasePrimary();throw error;}
+   const primaryOptions=detailed?options:{allowUnlabelledSerial:options.allowUnlabelledSerial};
+   try{return await readAttempts(reader,'PP-OCRv5_mobile_rec',source,region,onProgress,lightOnDark,detailed,primaryOptions,false,primarySide);}
+   catch(error){
+    await releasePrimary();
+    // Out of memory while reading: same reader, fresh worker, smaller image.
+    if(!isMemoryError(error)||primarySide<=REDUCED_PRIMARY_SIDE)throw error;
+    primarySide=REDUCED_PRIMARY_SIDE;
+    onProgress('Leitor principal · pouca memória · tentando de novo com imagem menor…');
+    const retry=await engine();
+    try{
+     const attempts=await readAttempts(retry,'PP-OCRv5_mobile_rec',source,region,onProgress,lightOnDark,detailed,primaryOptions,false,primarySide);
+     return attempts.map(item=>({...item,primaryMemoryRetry:{maxSide:primarySide,error:String(error?.message||error).slice(0,200)}}));
+    }catch(retryError){await releasePrimary();throw retryError;}
+   }
   },
   async({reason,attempts})=>{
    const results=[],errors=[];
@@ -85,7 +102,7 @@ export async function readPrintedSerial(source,region,onProgress,lightOnDark=fal
    throw new Error(errors.join(' | ')||'Nenhum leitor identificou o texto na foto.');
   },onProgress,{isReadable,isConfident:options.isConfident,beforeFallback:releasePrimary});
 }
-async function readAttempts(reader,model,source,region,onProgress,lightOnDark,detailed,options,compatible=false){
+async function readAttempts(reader,model,source,region,onProgress,lightOnDark,detailed,options,compatible=false,maxSide=PRIMARY_SIDE){
  const attempts=[];
  const variants=compatible?(detailed?['cinza','normalizado','cinza','nitidez']:['cinza','normalizado']):(detailed?['original','contraste','original','contraste']:['original','contraste']);
  if(detailed)variants.push('caracteres-contraste','caracteres-nitidez');
@@ -93,8 +110,8 @@ async function readAttempts(reader,model,source,region,onProgress,lightOnDark,de
  for(const variant of variants){
   const currentRegion=(compatible||detailed&&attempts.length>=2)&&focused?focused:region;
   onProgress((variant.startsWith('caracteres-')?'Leitura detalhada · conferindo I/1 e 5/S':'Lendo a linha da série')+' · '+(attempts.length+1)+' de '+variants.length+(currentRegion===focused?' · ampliada':'')+'…');
-  const input=cropCanvas(source,currentRegion,variant,lightOnDark,compatible&&currentRegion===focused?4:2);
-  try{const [result]=await reader.predict(input,{...(compatible?{singleLine:currentRegion===focused&&variant!=='normalizado'}:{}),textRecScoreThresh:0,textDetLimitSideLen:1200,textDetLimitType:'max',textDetBoxThresh:.4});let attempt={...sample(result.items,model,variant+(currentRegion===focused?'-ampliada':''),currentRegion),inputWidth:input.width};if(options.allowUnlabelledSerial)attempt=compatible?samsungSerialSample(attempt):samsungUnlabelledSample(attempt);if((detailed||compatible)&&!focused)focused=serialRegion(attempt,currentRegion,input.width,source,{...options,...(compatible&&options.allowUnlabelledSerial?{extractSerial:samsungSerialCandidate}:{}),wholeLine:compatible});attempts.push(attempt);}
+  const input=cropCanvas(source,currentRegion,variant,lightOnDark,compatible&&currentRegion===focused?4:2,maxSide);
+  try{const [result]=await reader.predict(input,{...(compatible?{singleLine:currentRegion===focused&&variant!=='normalizado'}:{}),textRecScoreThresh:0,textDetLimitSideLen:maxSide,textDetLimitType:'max',textDetBoxThresh:.4});let attempt={...sample(result.items,model,variant+(currentRegion===focused?'-ampliada':''),currentRegion),inputWidth:input.width};if(options.allowUnlabelledSerial)attempt=compatible?samsungSerialSample(attempt):samsungUnlabelledSample(attempt);if((detailed||compatible)&&!focused)focused=serialRegion(attempt,currentRegion,input.width,source,{...options,...(compatible&&options.allowUnlabelledSerial?{extractSerial:samsungSerialCandidate}:{}),wholeLine:compatible});attempts.push(attempt);}
   finally{input.width=0;input.height=0;await new Promise(resolve=>setTimeout(resolve,20));}
  }
  return detailed?markGlyphReview(attempts,options.extractSerial||(text=>extractPrint(text).serial)):attempts;
