@@ -2,7 +2,8 @@ import {OPPO_45W_ID,OPPO_PREFIX,inspectOPPOLabel,extractOPPOPrinted,oppoManufact
 import { readingComparison, readingResultNotice } from "./reading-view.mjs";
 import { createLGQRDetails } from "./inspection/lg-qr-details.mjs";
 import { selectLGPrintedText } from "./ocr/lg-label-text.mjs";
-import { readBarcodes, prepareZXingModule } from "zxing-wasm/reader";
+import { readBarcodes as readBarcodesInPage, prepareZXingModule } from "zxing-wasm/reader";
+import { isolatedBarcodeReader } from "./capture/barcode-reader.mjs";
 import { createWorker } from "tesseract.js";
 import {
   compare,
@@ -75,6 +76,13 @@ prepareZXingModule({
     locateFile: (path) =>
       path.endsWith(".wasm") ? asset("vendor/zxing_reader.wasm") : path,
   },
+});
+// 2D code reading runs in a worker that is closed after each photo (frees memory).
+const readBarcodes = isolatedBarcodeReader({
+  readInPage: readBarcodesInPage,
+  createWorker: () =>
+    new Worker(new URL(__BARCODE_WORKER__, document.baseURI), { type: "module" }),
+  wasmUrl: asset("vendor/zxing_reader.wasm"),
 });
 let selectedModel = DEFAULT_MODEL,
   worker = null,

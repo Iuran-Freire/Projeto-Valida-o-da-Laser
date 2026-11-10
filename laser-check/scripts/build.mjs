@@ -1,6 +1,7 @@
 import {build} from 'esbuild';
 import {mkdir, cp, copyFile, readdir, writeFile, readFile, unlink, rename} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
+import {resolve as resolvePath} from 'node:path';
 
 const output='frontend/dist';
 const appBuild='app-build.js';
@@ -14,9 +15,12 @@ for(const [source,target] of Object.entries(styles))await copyFile(`frontend/src
 // Remove only obsolete generated assets whose sources now have dedicated folders.
 for(const file of ['brand.css','brand-lg-label.css','style.css','positions-v1.css','positions-v2.css','icon.svg','icon-192.png','icon-512.png','inventus-power-logo.svg'])await unlink(`${output}/${file}`).catch(error=>{if(error.code!=='ENOENT')throw error;});
 for(const file of await readdir(output))if(/^app-.*\.js$/.test(file))await unlink(`${output}/${file}`);
-for(const file of await readdir(`${output}/assets`))if(/^(serial-reader|paddle-reader)-.*\.js$/.test(file))await unlink(`${output}/assets/${file}`);
+for(const file of await readdir(`${output}/assets`))if(/^(serial-reader|paddle-reader|barcode-reader)-.*\.js$/.test(file))await unlink(`${output}/assets/${file}`);
 const paddleTemp=`${output}/assets/paddle-reader-build.js`;
-await build({entryPoints:['frontend/src/ocr/paddle-worker.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:paddleTemp,minify:true,legalComments:'eof',external:['fs','path','crypto','module']});
+// Main reader worker: PaddleOCR's `import("onnxruntime-web")` resolves to a lean
+// CPU-only runtime without memory arena (frontend/src/ocr/ort-lean.mjs).
+const leanOrt={name:'lean-ort',setup(b){b.onResolve({filter:/^onnxruntime-web$/},()=>({path:resolvePath('frontend/src/ocr/ort-lean.mjs')}));}};
+await build({entryPoints:['frontend/src/ocr/paddle-worker.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:paddleTemp,minify:true,legalComments:'eof',external:['fs','path','crypto','module'],plugins:[leanOrt]});
 const paddleHash=createHash('sha256').update(await readFile(paddleTemp)).digest('hex').slice(0,12);
 const paddleAsset=`assets/paddle-reader-${paddleHash}.js`;
 await rename(paddleTemp,`${output}/${paddleAsset}`);
@@ -25,8 +29,13 @@ await build({entryPoints:['frontend/src/ocr/serial-reader-worker.mjs'],bundle:tr
 const workerHash=createHash('sha256').update(await readFile(workerTemp)).digest('hex').slice(0,12);
 const workerAsset=`assets/serial-reader-${workerHash}.js`;
 await rename(workerTemp,`${output}/${workerAsset}`);
+const barcodeTemp=`${output}/assets/barcode-reader-build.js`;
+await build({entryPoints:['frontend/src/capture/barcode-worker.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:barcodeTemp,minify:true,legalComments:'eof',external:['fs','path','crypto','module']});
+const barcodeHash=createHash('sha256').update(await readFile(barcodeTemp)).digest('hex').slice(0,12);
+const barcodeAsset=`assets/barcode-reader-${barcodeHash}.js`;
+await rename(barcodeTemp,`${output}/${barcodeAsset}`);
 
-await build({entryPoints:['frontend/src/app.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:`${output}/${appBuild}`,minify:true,legalComments:'eof',external:['fs','path','crypto','module'],define:{__SERIAL_WORKER__:JSON.stringify('./'+workerAsset),__PADDLE_WORKER__:JSON.stringify('./'+paddleAsset)}});
+await build({entryPoints:['frontend/src/app.mjs'],bundle:true,format:'esm',platform:'browser',target:['es2022'],outfile:`${output}/${appBuild}`,minify:true,legalComments:'eof',external:['fs','path','crypto','module'],define:{__SERIAL_WORKER__:JSON.stringify('./'+workerAsset),__PADDLE_WORKER__:JSON.stringify('./'+paddleAsset),__BARCODE_WORKER__:JSON.stringify('./'+barcodeAsset)}});
 const appHash=createHash('sha256').update(await readFile(`${output}/${appBuild}`)).digest('hex').slice(0,12);
 const appAsset=`app-${appHash}.js`;
 await rename(`${output}/${appBuild}`,`${output}/${appAsset}`);
