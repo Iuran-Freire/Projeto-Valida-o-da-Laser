@@ -15,7 +15,7 @@ export function parseOPPOSerial(raw){
 }
 export function extractOPPOPrinted(raw){
  const text=String(raw||'');const tagged=[...text.matchAll(/\bS\s*N\s*[:：]\s*([A-Za-z0-9]+)/gi)].map(m=>m[1]);
- const values=tagged.length?tagged:[...text.matchAll(/(?<![A-Za-z0-9])[A-Za-z0-9]{12}(?![A-Za-z0-9])/g)].map(m=>m[0]);
+ const values=tagged.length?tagged:[...text.matchAll(/(?:^|[^A-Za-z0-9])([A-Za-z0-9]{12})(?![A-Za-z0-9])/g)].map(m=>m[1]);
  const unique=[...new Set(values)];return unique.length===1&&unique[0].length===12?unique[0]:'';
 }
 export function parseOPPOCode(raw){

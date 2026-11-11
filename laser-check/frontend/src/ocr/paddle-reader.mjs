@@ -14,7 +14,6 @@ let primarySide=PRIMARY_SIDE;
 const url=p=>new URL(p,document.baseURI).href;
 let readerPromise=null;
 const recoverReader=createReaderRecovery();
-export function preloadPrintedReader(){return engine();}
 function engine(){if(!readerPromise)readerPromise=createPaddleReader({textDetectionModelName:'PP-OCRv5_mobile_det',textRecognitionModelName:'PP-OCRv5_mobile_rec',textDetectionModelAsset:{url:url('./vendor/paddle/det.tar')},textRecognitionModelAsset:{url:url('./vendor/paddle/rec.tar')},ortOptions:{backend:'wasm',numThreads:1,wasmPaths:url('./vendor/paddle/')}}).catch(error=>{readerPromise=null;throw error});return readerPromise;}
 function cropCanvas(source,region,variant='original',lightOnDark=false,maxScale=2,maxSide=PRIMARY_SIDE){
  const c=document.createElement('canvas');const scale=Math.min(maxScale,maxSide/Math.max(region.w,region.h));

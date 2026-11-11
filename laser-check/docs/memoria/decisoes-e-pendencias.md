@@ -15,6 +15,8 @@
 3. `c48f186`: leitura principal tenta de novo com 800 px quando falta memória
 4. `99a8ef6`: código 2D num worker descartável + ONNX só de CPU
 5. `9719cbd`: linha de progresso, cronômetro e textos de andamento
+6. `73c7b9e`: memória do projeto (este arquivo e o `CLAUDE.md`)
+7. Revisão para a apresentação no iPhone: compatibilidade com Safari, campos sem zoom, limpeza de 55 MB da publicação e de código sem uso
 
 ## Próximos passos
 
@@ -23,3 +25,4 @@
 - Melhorar a separação 5/S (o leitor principal leu `S` no lugar de `5` com 96% numa foto do Type C).
 - Campo "Texto impresso" às vezes mostra todas as linhas lidas em vez de só a série (só visual).
 - O botão "Nova leitura" fica atrás do painel de andamento no celular durante a leitura (já acontecia antes).
+- Tesseract (último recurso, só em iOS < 16.4 ou aparelhos sem WebAssembly SIMD) lê mal o 15W VE branco: mostra divergência e o inspetor corrige.

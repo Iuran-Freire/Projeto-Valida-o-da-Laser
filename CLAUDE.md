@@ -13,6 +13,10 @@ Teste (prévia fixa): https://cl-version-valida-laser.iuranhumberto99.workers.de
 - Antes de alterar, conferir `git status` para preservar mudanças locais.
 - Perguntar apenas quando faltar informação que mude a implementação.
 
+## Compatibilidade (iPhone/Safari)
+
+- Não usar lookbehind em expressões regulares nem campos com letra menor que 16 px. Detalhes em `docs/memoria/iphone.md`.
+
 ## Regras de negócio que não podem ser quebradas
 
 - **Nunca** corrigir caracteres da tampografia usando o código 2D. Toda leitura impressa vem da imagem.
@@ -39,6 +43,7 @@ Ler o arquivo do assunto antes de mexer nele:
 - `laser-check/docs/memoria/memoria-celular.md`: medições de memória e o que já foi feito para o A13.
 - `laser-check/docs/memoria/testes-dispositivos.md`: histórico de testes em aparelhos reais.
 - `laser-check/docs/memoria/publicacao.md`: como publicar a prévia e o passo a passo no Windows.
+- `laser-check/docs/memoria/iphone.md`: requisitos e cuidados para iPhone/Safari.
 - `laser-check/docs/memoria/decisoes-e-pendencias.md`: decisões tomadas e próximos passos.
 
 Ao terminar um trabalho relevante, **atualizar o arquivo de memória correspondente**.

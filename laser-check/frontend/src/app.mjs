@@ -4,6 +4,11 @@ import { createLGQRDetails } from "./inspection/lg-qr-details.mjs";
 import { selectLGPrintedText } from "./ocr/lg-label-text.mjs";
 import { readBarcodes as readBarcodesInPage, prepareZXingModule } from "zxing-wasm/reader";
 import { isolatedBarcodeReader } from "./capture/barcode-reader.mjs";
+import {
+  jpegOrientation,
+  missingOrientation,
+  orientationTransform,
+} from "./capture/photo-orientation.mjs";
 import { createWorker } from "tesseract.js";
 import {
   compare,
@@ -79,6 +84,14 @@ import {
 const $ = (s) => document.querySelector(s);
 const base = new URL("./", location.href);
 const asset = (p) => new URL(p, base).href;
+for (const dialog of document.querySelectorAll("dialog"))
+  if (typeof dialog.showModal !== "function") {
+    dialog.showModal = () => dialog.setAttribute("open", "");
+    dialog.close = () => {
+      dialog.removeAttribute("open");
+      dialog.dispatchEvent(new Event("close"));
+    };
+  }
 prepareZXingModule({
   overrides: {
     locateFile: (path) =>
@@ -1433,11 +1446,18 @@ function clearReadings() {
   $("#save-message").textContent = "";
   update();
 }
-function setPhoto(image, width, height) {
-  const scale = Math.min(1, 2560 / Math.max(width, height));
-  canvas.width = Math.round(width * scale);
-  canvas.height = Math.round(height * scale);
-  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+function setPhoto(image, width, height, orientation = 1) {
+  // `orientation` turns a photo the browser decoded lying down (iPhone EXIF).
+  const upright = orientationTransform(orientation, width, height);
+  const scale = Math.min(1, 2560 / Math.max(upright.width, upright.height));
+  const drawWidth = Math.round(width * scale),
+    drawHeight = Math.round(height * scale);
+  const turn = orientationTransform(orientation, drawWidth, drawHeight);
+  canvas.width = turn.width;
+  canvas.height = turn.height;
+  ctx.setTransform(...turn.matrix);
+  ctx.drawImage(image, 0, 0, drawWidth, drawHeight);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   photoBase = ctx.getImageData(0, 0, canvas.width, canvas.height);
   canvas.hidden = false;
   $("#camera-empty").hidden = true;
@@ -1479,6 +1499,11 @@ async function loadPhoto(event) {
   let image = null,
     url = null;
   try {
+    // EXIF turn and stored size, to fix photos a browser decodes lying down.
+    const stored = await file
+      .slice(0, 262144)
+      .arrayBuffer()
+      .then(jpegOrientation, () => null);
     try {
       image = await createImageBitmap(file);
     } catch {
@@ -1487,7 +1512,12 @@ async function loadPhoto(event) {
       image.src = url;
       await image.decode();
     }
-    setPhoto(image, image.width, image.height);
+    setPhoto(
+      image,
+      image.width,
+      image.height,
+      missingOrientation(stored, image.width, image.height),
+    );
     image?.close?.();
     image = null;
     if (url) {

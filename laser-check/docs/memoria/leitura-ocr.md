@@ -1,6 +1,6 @@
 # Como a leitura funciona
 
-Fluxo de uma foto: abrir a foto (máx. 2560 px) → ler o código 2D → recortar a região da série → OCR → comparar → inspetor confere e registra.
+Fluxo de uma foto: abrir a foto (máx. 2560 px; foto de iPhone deitada é girada em `capture/photo-orientation.mjs` se o navegador não girou) → ler o código 2D → recortar a região da série → OCR → comparar → inspetor confere e registra.
 
 ## Leitores (em ordem)
 

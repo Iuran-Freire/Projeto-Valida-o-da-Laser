@@ -31,7 +31,7 @@ No Chrome/Edge compatível, use “Instalar aplicativo” quando disponível. No
 ## Estrutura do projeto
 
 - `frontend/src/`: interface, captura da foto, OCR e sincronização no navegador.
-- `frontend/src/styles/`: estilos base, tema e componentes; estilos antigos ficam em `legacy/`.
+- `frontend/src/styles/`: estilos base, tema e componentes.
 - `frontend/src/capture/`, `ocr/`, `inspection/` e `persistence/`: captura, leitura, inspeção visual e armazenamento/sincronização.
 - `frontend/public/`: HTML e manifesto; imagens em `images/` e ícones em `icons/`.
 - `frontend/dist/`: arquivos gerados por `npm run build` e publicados no Worker.

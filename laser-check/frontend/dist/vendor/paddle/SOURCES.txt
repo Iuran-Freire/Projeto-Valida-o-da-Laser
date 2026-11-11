@@ -3,7 +3,6 @@ ONNX Runtime Web 1.24.3 — MIT — https://github.com/microsoft/onnxruntime
 Models downloaded from official PaddlePaddle model registry, paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/:
 PP-OCRv5_mobile_det_onnx_infer.tar
 PP-OCRv5_mobile_rec_onnx_infer.tar
-PP-OCRv6_small_rec_onnx_infer.tar
 
 en_PP-OCRv5_mobile_rec — Apache-2.0 — https://github.com/PaddlePaddle/PaddleOCR
 Source: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/en_PP-OCRv5_mobile_rec_onnx_infer.tar

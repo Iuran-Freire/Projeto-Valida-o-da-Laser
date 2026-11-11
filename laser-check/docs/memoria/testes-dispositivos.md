@@ -9,7 +9,7 @@ O A13 é do chefe do dono do projeto: testar nele é difícil, então cada teste
 
 ## Pendentes
 
-- A13 com a versão `app-25775db57993` (redução de memória + linha de progresso): repetir 15W VE, leitura detalhada e Type C, sem fechar a aba.
+- A13 com a versão `app-5e28418a6f3f` (redução de memória, linha de progresso, revisão para iPhone e rotação da foto): repetir 15W VE, leitura detalhada e Type C, sem fechar a aba.
 - iPhone 11 (Safari): primeiro teste em iOS. Precisa de iOS 16.4 ou mais novo para a leitura principal.
 
 Para cada teste, pedir os diagnósticos JSON (botão de baixar diagnóstico) e conferir o campo `build`.

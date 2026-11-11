@@ -23,7 +23,7 @@ export function parseFrecomDMSerial(raw){
 
 export function extractFrecomDMPrinted(raw){
  const lines=String(raw||'').toUpperCase().split(/[\r\n]+/).map(line=>line.replace(/\s+/g,''));
- const candidates=lines.flatMap(line=>[...line.matchAll(/(?<![A-Z0-9])[A-Z0-9]{10}(?![A-Z0-9])/g)].map(match=>match[0]));
+ const candidates=lines.flatMap(line=>[...line.matchAll(/(?:^|[^A-Z0-9])([A-Z0-9]{10})(?![A-Z0-9])/g)].map(match=>match[1]));
  const unique=[...new Set(candidates)];return unique.length===1?unique[0]:'';
 }
 
