@@ -22,7 +22,20 @@ import {
   nearbyRegion,
 } from "../../shared/validation/inspection.mjs";
 import { readPrintedSerial } from "./ocr/paddle-reader.mjs";
-import { modelReaderOptions } from "./ocr/model-reader-options.mjs";
+import {
+  modelReaderOptions,
+  anatelReaderOptions,
+} from "./ocr/model-reader-options.mjs";
+import {
+  ANATEL_RULE,
+  ANATEL_SEALS,
+  ANATEL_STAGE,
+  anatelCsv,
+  anatelSealFor,
+  extractAnatelNumber,
+  extractAnatelTab,
+  inspectAnatelSeal,
+} from "../../shared/models/anatel-seal.mjs";
 import {
   READ_STEPS,
   STEP_TITLES,
@@ -153,6 +166,21 @@ function ocrErrorDetail(error) {
 }
 const canvas = $("#photo"),
   ctx = canvas.getContext("2d", { willReadFrequently: true });
+// Selo Anatel (separate stage): photo, reading and the number read.
+const anatelCanvas = $("#anatel-photo"),
+  anatelCtx = anatelCanvas.getContext("2d", { willReadFrequently: true });
+let anatelBase = null,
+  anatelReading = false,
+  anatelSaving = false,
+  anatelSaved = false,
+  anatelOriginal = "",
+  anatelText = "",
+  anatelAttempts = [],
+  anatelTab = "",
+  anatelCode = "",
+  anatelReliable = false,
+  anatelConfidence = null,
+  anatelSource = "";
 let readActivityTimer = null,
   readActivityTick = null,
   readActivityStep = "",
@@ -262,6 +290,8 @@ function setBusy(value) {
     "#inspector-submit",
     "#model-select",
     "#tab-management",
+    "#tab-inspection",
+    "#tab-anatel",
     "#barcode",
   ])
     $(s).disabled = value;
@@ -1183,6 +1213,7 @@ function updateCaptureActions() {
   camera.classList.remove("secondary-capture");
 }
 function update() {
+  updateAnatel();
   $('#reading-diagnostic').disabled=busy||!photoBase;
   const result = updateReview(),
     panel = $("#live-reading");
@@ -1446,19 +1477,23 @@ function clearReadings() {
   $("#save-message").textContent = "";
   update();
 }
-function setPhoto(image, width, height, orientation = 1) {
-  // `orientation` turns a photo the browser decoded lying down (iPhone EXIF).
+// Draws a photo upright (max 2560 px); `orientation` turns a photo the browser
+// decoded lying down (iPhone EXIF).
+function drawUpright(target, context, image, width, height, orientation = 1) {
   const upright = orientationTransform(orientation, width, height);
   const scale = Math.min(1, 2560 / Math.max(upright.width, upright.height));
   const drawWidth = Math.round(width * scale),
     drawHeight = Math.round(height * scale);
   const turn = orientationTransform(orientation, drawWidth, drawHeight);
-  canvas.width = turn.width;
-  canvas.height = turn.height;
-  ctx.setTransform(...turn.matrix);
-  ctx.drawImage(image, 0, 0, drawWidth, drawHeight);
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  photoBase = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  target.width = turn.width;
+  target.height = turn.height;
+  context.setTransform(...turn.matrix);
+  context.drawImage(image, 0, 0, drawWidth, drawHeight);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  return context.getImageData(0, 0, target.width, target.height);
+}
+function setPhoto(image, width, height, orientation = 1) {
+  photoBase = drawUpright(canvas, ctx, image, width, height, orientation);
   canvas.hidden = false;
   $("#camera-empty").hidden = true;
   $("#detail-tools").hidden = false;
@@ -2493,8 +2528,11 @@ $("#history-status").addEventListener("change", () => {
   renderHistory();
 });
 function renderHistory() {
+  renderAnatelHistory();
   const available = records.filter(
-    (record) => record.syncState === "synced" || record.inspector === inspector,
+    (record) =>
+      record.stage !== ANATEL_STAGE &&
+      (record.syncState === "synced" || record.inspector === inspector),
   );
   const query = normalizeSearch($("#history-search").value),
     statusFilter = $("#history-status").value;
@@ -3428,7 +3466,9 @@ async function persistComparison() {
 $("#save").onclick = () => persistComparison();
 $("#export").onclick = () => {
   const available = records.filter(
-    (record) => record.syncState === "synced" || record.inspector === inspector,
+    (record) =>
+      record.stage !== ANATEL_STAGE &&
+      (record.syncState === "synced" || record.inspector === inspector),
   );
   const query = normalizeSearch($("#history-search").value),
     statusFilter = $("#history-status").value;
@@ -3499,6 +3539,7 @@ $("#model-select").onchange = () => {
   if (!isModelCode(next) || next === selectedModel) return;
   selectedModel = next;
   localStorage.setItem("laser-model", selectedModel);
+  resetAnatel();
   dualVisualPhoto = null;
   dualLabelPhoto = null;
   photoBase = null;
@@ -3762,20 +3803,410 @@ $("#management-form").onsubmit = async (event) => {
 };
 $("#management-cancel").onclick = resetManagementForm;
 $("#management-refresh").onclick = loadInspectors;
+// ── Selo Anatel ──────────────────────────────────────────────────────────────
+// A later stage than the laser check: the seal's homologation number (top line)
+// is read from the photo and compared with the model's. Nothing is corrected
+// automatically; the inspector confirms (or types the number) before saving.
+const anatelRecords = () =>
+  records.filter(
+    (record) =>
+      record.stage === ANATEL_STAGE &&
+      (record.syncState === "synced" || record.inspector === inspector),
+  );
+function anatelFeedback(text, error = false) {
+  const node = $("#anatel-feedback");
+  node.textContent = text;
+  node.classList.toggle("error", error);
+}
+function anatelProgress(text) {
+  const progress = interpretProgress(text);
+  if (progress) setReadStage(progress.step, progress.detail, progress);
+  anatelFeedback(progress?.detail || text);
+}
+function resetAnatel() {
+  anatelBase = null;
+  anatelSaved = false;
+  anatelOriginal = anatelText = anatelTab = anatelCode = "";
+  anatelAttempts = [];
+  anatelReliable = false;
+  anatelConfidence = null;
+  anatelCanvas.hidden = true;
+  $("#anatel-empty").hidden = false;
+  $("#anatel-number").value = "";
+  $("#anatel-confirmed").checked = false;
+  $("#anatel-save-message").textContent = "";
+  anatelFeedback("");
+  updateAnatel();
+}
+function updateAnatel() {
+  const seal = anatelSealFor(selectedModel),
+    label = getModelProfile(selectedModel).label,
+    hasPhoto = !!anatelBase,
+    number = $("#anatel-number").value.trim(),
+    result = inspectAnatelSeal(selectedModel, number);
+  $("#anatel-model").textContent = seal
+    ? `${label} · número de homologação do modelo: ${seal.numbers.join(" ou ")}`
+    : `${label} ainda não tem selo Anatel cadastrado. Modelos com selo: ${Object.keys(ANATEL_SEALS)
+        .map((model) => getModelProfile(model).label)
+        .join(", ")}.`;
+  for (const [input, trigger] of [
+    ["#anatel-native-file", "#anatel-native-trigger"],
+    ["#anatel-file", "#anatel-file-trigger"],
+  ]) {
+    $(input).disabled = busy || !seal;
+    $(trigger).classList.toggle("disabled", busy || !seal);
+    $(trigger).setAttribute("aria-disabled", String(busy || !seal));
+  }
+  $("#anatel-number").disabled = busy || !hasPhoto || anatelSaved;
+  $("#anatel-confirmed").disabled =
+    busy || !hasPhoto || anatelSaving || anatelSaved;
+  const box = $("#anatel-result");
+  const show = (style, symbol, title, text) => {
+    box.className = "result " + style;
+    box.querySelector(".result-symbol").textContent = symbol;
+    box.querySelector("strong").textContent = title;
+    box.querySelector("p").textContent = text;
+  };
+  if (anatelReading)
+    show("reading", "", "Leitura em andamento", "Aguarde. O resultado aparece aqui quando a leitura terminar.");
+  else if (!seal)
+    show("neutral", "—", "Modelo sem selo cadastrado", "Selecione acima um modelo com selo Anatel cadastrado.");
+  else if (!hasPhoto)
+    show("neutral", "—", "Aguardando a foto do selo", "O número lido será comparado com o do modelo.");
+  else
+    show(
+      { COINCIDE: "match", DIVERGENTE: "mismatch", PENDENTE: "pending" }[result.status],
+      { COINCIDE: "✓", DIVERGENTE: "≠", PENDENTE: "!" }[result.status],
+      {
+        COINCIDE: "Número do selo é o do modelo",
+        DIVERGENTE: "Número do selo diferente do modelo",
+        PENDENTE: "Número do selo não identificado",
+      }[result.status],
+      result.reason +
+        (result.read && !anatelReliable && number === anatelOriginal
+          ? " A leitura automática pede conferência: amplie a foto."
+          : "") +
+        ({ COINCIDE: " Confira e confirme para registrar.", DIVERGENTE: " Confirme para registrar a divergência." }[result.status] || ""),
+    );
+  const comparison = $("#anatel-comparison");
+  comparison.hidden = !(seal && hasPhoto && !anatelReading);
+  comparison.replaceChildren(
+    ...(comparison.hidden
+      ? []
+      : [
+          readingComparison(
+            [
+              ["Número do modelo", result.expected],
+              ["Número no selo", result.read || number],
+            ],
+            result.expected.length,
+          ),
+        ]),
+  );
+  $("#anatel-extra").textContent = hasPhoto
+    ? [
+        anatelTab ? `TAB do selo: ${anatelTab} (registrado, não validado).` : "TAB do selo não lido.",
+        anatelCode ? `Peça na foto: ${anatelCode}.` : "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : "";
+  const ready =
+    !busy && !anatelSaving && !anatelSaved && storageReady && !!seal && hasPhoto;
+  const save = $("#anatel-save");
+  save.disabled =
+    !ready || !inspector || !inspectorShift || !$("#anatel-confirmed").checked;
+  save.textContent = anatelSaved
+    ? "Selo registrado"
+    : anatelSaving
+      ? "Registrando…"
+      : !hasPhoto
+        ? "Tire a foto do selo"
+        : !inspector || !inspectorShift
+          ? "Informe inspetor e turno acima"
+          : !$("#anatel-confirmed").checked
+            ? "Confirme para registrar"
+            : "Registrar selo";
+  return result;
+}
+async function loadAnatelPhoto(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file || busy || !anatelSealFor(selectedModel)) return;
+  resetAnatel();
+  anatelSource = event.target.id === "anatel-native-file" ? "câmera do celular" : "foto";
+  anatelReading = true;
+  setReadStage("photo");
+  anatelFeedback("Abrindo a foto…");
+  let image = null,
+    url = null;
+  try {
+    const stored = await file
+      .slice(0, 262144)
+      .arrayBuffer()
+      .then(jpegOrientation, () => null);
+    try {
+      image = await createImageBitmap(file);
+    } catch {
+      url = URL.createObjectURL(file);
+      image = new Image();
+      image.src = url;
+      await image.decode();
+    }
+    anatelBase = drawUpright(
+      anatelCanvas,
+      anatelCtx,
+      image,
+      image.width,
+      image.height,
+      missingOrientation(stored, image.width, image.height),
+    );
+    anatelCanvas.hidden = false;
+    $("#anatel-empty").hidden = true;
+  } catch (error) {
+    anatelReading = false;
+    setReadStage("error", "Confira a foto e tente novamente.");
+    anatelFeedback("Não foi possível abrir a foto. " + ocrErrorDetail(error), true);
+    updateAnatel();
+    return;
+  } finally {
+    image?.close?.();
+    if (url) URL.revokeObjectURL(url);
+  }
+  await readAnatel();
+}
+async function readAnatel() {
+  anatelReading = true;
+  setBusy(true);
+  try {
+    // The piece's 2D, when it is in the photo, links the seal to the serial.
+    anatelProgress("Lendo QR Code / Data Matrix…");
+    try {
+      const codes = (
+        await readBarcodes(anatelBase, {
+          formats: ["QRCode", "DataMatrix"],
+          tryHarder: true,
+          tryInvert: true,
+          maxNumberOfSymbols: 8,
+        })
+      ).filter((code) => code.isValid !== false);
+      anatelCode = codes.length === 1 ? codes[0].text : "";
+    } catch {
+      anatelCode = "";
+    }
+    anatelProgress("Localizando e reconhecendo o número do selo…");
+    const options = anatelReaderOptions();
+    anatelAttempts = await readPrintedSerial(
+      anatelCanvas,
+      { x: 0, y: 0, w: anatelCanvas.width, h: anatelCanvas.height },
+      anatelProgress,
+      false,
+      false,
+      options,
+    );
+    const texts = anatelAttempts.map((item) => item.fullText || item.text || "");
+    const tally = (values) => {
+      const counts = new Map();
+      for (const value of values.filter(Boolean)) counts.set(value, (counts.get(value) || 0) + 1);
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    };
+    const numbers = tally(texts.map(extractAnatelNumber));
+    const best = numbers[0]?.[0] || "";
+    anatelReliable = numbers.length === 1 && options.isConfident(anatelAttempts);
+    anatelTab = tally(texts.map(extractAnatelTab))[0]?.[0] || "";
+    anatelConfidence = Math.max(
+      0,
+      ...anatelAttempts
+        .filter((item) => extractAnatelNumber(item.fullText || item.text || "") === best)
+        .map((item) => Number(item.confidence) || 0),
+    );
+    anatelText = texts.join("\n---\n").slice(0, 4000);
+    anatelOriginal = best;
+    $("#anatel-number").value = best;
+    anatelFeedback(
+      best
+        ? anatelReliable
+          ? "Número lido. Confira a foto e confirme."
+          : "Número lido, mas a leitura pede conferência. Amplie a foto e confira."
+        : "Não foi possível ler o número. Confira a foto e digite o número da linha de cima.",
+      !best,
+    );
+  } catch (error) {
+    anatelFeedback(
+      "A leitura automática falhou. Confira a foto e digite o número da linha de cima. Detalhe: " +
+        ocrErrorDetail(error),
+      true,
+    );
+  } finally {
+    anatelReading = false;
+    setBusy(false);
+  }
+}
+async function saveAnatel() {
+  const seal = anatelSealFor(selectedModel);
+  if (
+    !seal ||
+    busy ||
+    anatelSaving ||
+    anatelSaved ||
+    !storageReady ||
+    !anatelBase ||
+    !inspector ||
+    !inspectorShift ||
+    !$("#anatel-confirmed").checked
+  )
+    return;
+  const number = $("#anatel-number").value.trim(),
+    result = inspectAnatelSeal(selectedModel, number);
+  const record = {
+    id: crypto.randomUUID(),
+    date: new Date().toISOString(),
+    inspector,
+    shift: inspectorShift,
+    model: selectedModel,
+    stage: ANATEL_STAGE,
+    syncState: "pending",
+    photoPresent: true,
+    barcodePhotoPresent: false,
+    status: result.status,
+    reason: result.reason,
+    codeSerial: result.expected,
+    printSerial: result.read,
+    ocr: [number, anatelTab ? "TAB " + anatelTab : ""].filter(Boolean).join("\n"),
+    originalOCR: anatelText,
+    printEdited: number !== anatelOriginal,
+    anatelTab: anatelTab || null,
+    qr: anatelCode,
+    codeSource: anatelCode ? anatelSource : "",
+    printSource: "OCR · " + anatelSource,
+    ocrReliable: anatelReliable,
+    ocrAttempts: anatelAttempts.map(({ text, confidence, model, variant, readerMode }) => ({
+      text,
+      confidence,
+      model,
+      variant,
+      readerMode,
+    })),
+    confidence: anatelConfidence,
+    confirmed: true,
+    automatic: false,
+    rule: ANATEL_RULE + " / " + seal.numbers.join(","),
+  };
+  anatelSaving = true;
+  updateAnatel();
+  try {
+    await saveRecordWithPhoto(record, await archivePhoto(anatelBase), null);
+    anatelSaved = true;
+    $("#anatel-save-message").textContent =
+      "Registro e foto do selo salvos neste aparelho. Aguardando sincronização.";
+    records = await listRecords();
+    renderHistory();
+    await syncNow();
+    if (records.find((item) => item.id === record.id && item.syncState === "synced"))
+      $("#anatel-save-message").textContent =
+        "Registro e foto do selo compartilhados: " + record.status + ".";
+  } catch (error) {
+    $("#anatel-save-message").textContent =
+      "Não foi possível salvar a foto e o registro do selo. " + error.message;
+  } finally {
+    anatelSaving = false;
+    updateAnatel();
+  }
+}
+function renderAnatelHistory() {
+  const available = anatelRecords();
+  $("#anatel-count").textContent = available.length;
+  $("#anatel-empty-history").hidden = available.length > 0;
+  $("#anatel-export").disabled = !available.length;
+  $("#anatel-history-summary").textContent = available.length > 50
+    ? `Mostrando os 50 mais recentes de ${available.length} registros.`
+    : "";
+  const body = $("#anatel-history");
+  body.replaceChildren();
+  for (const record of available.slice(0, 50)) {
+    const tr = document.createElement("tr");
+    tr.dataset.result = record.status;
+    for (const [label, value] of [
+      ["Data / hora", new Date(record.date).toLocaleString("pt-BR")],
+      ["Inspetor", record.inspector],
+      ["Turno", record.shift ? `${SHIFT_LABELS[record.shift] || "Turno"} (${record.shift})` : "Não informado"],
+      ["Modelo", getModelProfile(record.model).label],
+      ["Número do modelo", record.codeSerial || "—"],
+      ["Número no selo", record.printSerial || "Não lido"],
+    ]) {
+      const td = document.createElement("td");
+      td.dataset.label = label;
+      td.textContent = value;
+      if (label.startsWith("Número")) td.classList.add("history-serial");
+      tr.append(td);
+    }
+    const status = document.createElement("td");
+    status.dataset.label = "Resultado";
+    status.append(badge(record.status));
+    const sync = document.createElement("td");
+    sync.dataset.label = "Sincronização";
+    sync.textContent =
+      record.syncState === "pending" ? "Neste aparelho · aguardando envio" : "Compartilhado";
+    const photoCell = document.createElement("td");
+    photoCell.dataset.label = "Foto";
+    if (record.photoPresent) {
+      const button = document.createElement("button");
+      button.className = "text-button";
+      button.textContent = "Ver foto";
+      button.onclick = () => showPhoto(record);
+      photoCell.append(button);
+    } else photoCell.textContent = "—";
+    tr.append(status, sync, photoCell);
+    body.append(tr);
+  }
+}
+$("#anatel-native-file").onchange = loadAnatelPhoto;
+$("#anatel-file").onchange = loadAnatelPhoto;
+$("#anatel-native-trigger").onkeydown = (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    $("#anatel-native-trigger").click();
+  }
+};
+$("#anatel-number").oninput = () => {
+  // A changed number has to be confirmed again.
+  $("#anatel-confirmed").checked = false;
+  updateAnatel();
+};
+$("#anatel-confirmed").onchange = () => updateAnatel();
+$("#anatel-save").onclick = () => saveAnatel();
+$("#anatel-export").onclick = () => {
+  const blob = new Blob(
+    [anatelCsv(anatelRecords(), (model) => getModelProfile(model).label)],
+    { type: "text/csv;charset=utf-8" },
+  );
+  const url = URL.createObjectURL(blob),
+    link = document.createElement("a");
+  link.href = url;
+  link.download = `valida-laser-selo-anatel-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 function showTab(name) {
-  const management = name === "management";
+  const management = name === "management",
+    anatel = name === "anatel";
   $("#inspection-view").hidden = management;
   $("#management-view").hidden = !management;
-  $("#tab-inspection").classList.toggle("active", !management);
-  $("#tab-management").classList.toggle("active", management);
-  $("#tab-inspection").setAttribute(
-    "aria-current",
-    management ? "false" : "page",
-  );
-  $("#tab-management").setAttribute(
-    "aria-current",
-    management ? "page" : "false",
-  );
+  $("#app-content").hidden = management || anatel;
+  $("#anatel-content").hidden = !anatel;
+  for (const [id, active] of [
+    ["#tab-inspection", !management && !anatel],
+    ["#tab-anatel", anatel],
+    ["#tab-management", management],
+  ]) {
+    $(id).classList.toggle("active", active);
+    $(id).setAttribute("aria-current", active ? "page" : "false");
+  }
+  // "Nova leitura" reloads the page: come back to the same stage.
+  try {
+    localStorage.setItem("laser-tab", anatel ? "anatel" : "inspection");
+  } catch {}
+  if (anatel) updateAnatel();
   if (management) {
     $("#manager-lock").hidden = Boolean(managerPassword);
     $("#manager-content").hidden = !managerPassword;
@@ -3785,6 +4216,7 @@ function showTab(name) {
 }
 $("#tab-inspection").onclick = () => showTab("inspection");
 $("#tab-management").onclick = () => showTab("management");
+$("#tab-anatel").onclick = () => showTab("anatel");
 $("#sync-button").onclick = syncNow;
 window.addEventListener("online", syncNow);
 setInterval(syncNow, 30000);
@@ -3806,6 +4238,9 @@ async function init() {
   if (!isModelCode(selectedModel)) selectedModel = DEFAULT_MODEL;
   if (!isShiftCode(inspectorShift)) inspectorShift = "";
   setModelView();
+  try {
+    if (localStorage.getItem("laser-tab") === "anatel") showTab("anatel");
+  } catch {}
   await loadInspectors();
   await syncNow();
   if ("serviceWorker" in navigator) {

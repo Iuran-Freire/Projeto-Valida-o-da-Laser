@@ -44,6 +44,7 @@ Ler o arquivo do assunto antes de mexer nele:
 - `laser-check/docs/memoria/testes-dispositivos.md`: histórico de testes em aparelhos reais.
 - `laser-check/docs/memoria/publicacao.md`: como publicar a prévia e o passo a passo no Windows.
 - `laser-check/docs/memoria/iphone.md`: requisitos e cuidados para iPhone/Safari.
+- `laser-check/docs/memoria/selo-anatel.md`: aba do selo Anatel (números por modelo e regras).
 - `laser-check/docs/memoria/decisoes-e-pendencias.md`: decisões tomadas e próximos passos.
 
 Ao terminar um trabalho relevante, **atualizar o arquivo de memória correspondente**.

@@ -1,3 +1,4 @@
+import {ANATEL_STAGE,anatelSealFor} from './anatel-seal.mjs';
 export const PROFILE_PART='GH44-03247A';
 export const DEFAULT_MODEL='type-c';
 export const MODEL_PROFILES=Object.freeze({
@@ -42,6 +43,7 @@ export function checkCodeShift(code,serial,shift,model=DEFAULT_MODEL){
 export function isValidRecordShift(record){
   const model=record.model??DEFAULT_MODEL;
   if(!isModelCode(model))return false;
+  if(record.stage===ANATEL_STAGE)return isShiftCode(record.shift)&&!!anatelSealFor(model); // Etapa do selo: turno do inspetor da etapa.
   if(record.shift==null)return true; // Registros antigos ou pendentes criados antes do campo turno.
   if(!isShiftCode(record.shift))return false;
   if(model==='oppo-45w'||model==='frecom-24w'||model==='frecom-dm-24w'||model==='lg-psu-28w'||model==='lg-24w'||model==='lg-32w'||model==='a08-battery'||model==='a08-battery-62')return true; // Turno identifica o inspetor; não é codificado nesses 2D.

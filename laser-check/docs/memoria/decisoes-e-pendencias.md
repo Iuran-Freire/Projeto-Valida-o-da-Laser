@@ -20,6 +20,8 @@
 
 ## Próximos passos
 
+- Selo Anatel: começou pelo 15W VE (03340-19-04952). Cadastrar os números do Type C e dos demais modelos quando o dono informar.
+
 - Testar a versão atual no A13 e no iPhone 11.
 - Se o A13 ainda fechar a aba: liberar o leitor principal entre leituras.
 - Melhorar a separação 5/S (o leitor principal leu `S` no lugar de `5` com 96% numa foto do Type C).

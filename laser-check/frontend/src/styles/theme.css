@@ -113,3 +113,13 @@ main{padding-bottom:120px}.floating-new-reading{position:fixed;left:18px;bottom:
 @media(max-width:760px){#management-view{padding:16px;gap:20px}#manager-content{gap:20px}.management-card{padding:18px}.management-card .history-heading{align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:18px}#management-heading{font-size:1.6rem;margin-bottom:12px}.management-card form{gap:14px}}
 
 #manager-content>.management-intro{padding:22px 24px;margin:0;background:#f8f9fa;border:1px solid #e2e5e7;border-radius:10px}#manager-content>.management-intro h1{margin:0 0 16px}#manager-content>.management-intro p.help{margin-top:12px}@media(max-width:760px){#manager-content>.management-intro{padding:18px}#manager-content>.management-intro h1{margin-bottom:14px}}
+
+/* Aba Selo Anatel: mesmo visual da inspeção. */
+.main-tabs{flex-wrap:wrap}
+#anatel-empty{display:grid;place-items:center;text-align:center;gap:8px;padding:32px 18px;color:#5b6168}
+#anatel-empty svg{width:56px;height:56px;color:#a35100}
+#anatel-empty h3{margin:0}#anatel-empty p{margin:0}
+#anatel-photo{display:block;width:100%;height:auto}
+#anatel-number{font-family:Consolas,monospace;letter-spacing:.06em}
+#anatel-comparison{margin-bottom:16px}
+.capture-actions label.disabled{opacity:.45;pointer-events:none}

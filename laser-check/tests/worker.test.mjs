@@ -185,3 +185,22 @@ test('OPPO 45W exige uma foto, confirmação e série do Data Matrix igual à im
  assert.equal((await upload(record)).status,200);
  assert.deepEqual(new Uint8Array(await (await call('/api/photos/'+record.id)).arrayBuffer()),image);
 });
+test('etapa do selo Anatel: aceita o número do modelo com foto e confirmação',async()=>{
+ const bytes=new Uint8Array(120);bytes[0]=255;bytes[1]=216;bytes[118]=255;bytes[119]=217;
+ const seal={id:'123e4567-e89b-42d3-a456-4266141740a1',date:'2026-11-12T10:00:00Z',inspector:'Ana Souza',stage:'anatel',model:'15w-ve',shift:'J',
+  status:'COINCIDE',ocr:'ANATEL\n03340-19-04952\nTAB 405134148',confirmed:true,photoPresent:true,
+  // The piece's 2D (if read at this stage) carries the laser shift G, not the seal inspector's J: no laser rule applies.
+  qr:'GH44-03086A+R37LB9G58L2IPA'};
+ const saved=await callPhoto(seal,bytes);assert.equal(saved.status,200,JSON.stringify(await saved.clone().json()));
+ const stored=(await saved.json()).record;assert.equal(stored.stage,'anatel');assert.equal(stored.photoPresent,true);
+ const rejected=async(changes,id)=>(await callPhoto({...seal,...changes,id},bytes)).status;
+ assert.equal(await rejected({ocr:'14099-21-04952'},'123e4567-e89b-42d3-a456-4266141740a2'),400);   // número de outro modelo
+ assert.equal(await rejected({confirmed:false},'123e4567-e89b-42d3-a456-4266141740a3'),400);        // sem confirmação
+ assert.equal(await rejected({model:'oppo-45w'},'123e4567-e89b-42d3-a456-4266141740a4'),400);       // modelo sem selo cadastrado
+ assert.equal(await rejected({model:'type-c'},'123e4567-e89b-42d3-a456-4266141740a9'),400);         // Type C: número ainda não cadastrado
+ assert.equal(await rejected({shift:'X'},'123e4567-e89b-42d3-a456-4266141740a5'),400);              // turno inválido
+ assert.equal(await rejected({stage:'outra'},'123e4567-e89b-42d3-a456-4266141740a6'),400);          // etapa desconhecida
+ assert.equal((await call('/api/records','POST',{...seal,id:'123e4567-e89b-42d3-a456-4266141740a7',photoPresent:false})).status,400); // sem foto
+ // A wrong seal can be recorded, as DIVERGENTE.
+ assert.equal(await rejected({ocr:'14099-21-04952',status:'DIVERGENTE'},'123e4567-e89b-42d3-a456-4266141740a8'),200);
+});

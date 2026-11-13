@@ -7,6 +7,7 @@ import {parseLGPrinted} from '../../../shared/models/lg-label.mjs';
 import {parseA08Print} from '../../../shared/models/a08-battery.mjs';
 import {confidentPrintedReadings} from './reading-quality.mjs';
 import {samsungSerialCandidate} from './samsung-serial.mjs';
+import {extractAnatelNumber} from '../../../shared/models/anatel-seal.mjs';
 
 // Product formats decide whether text is usable; they never choose the engine.
 export function modelReaderOptions(model){
@@ -29,5 +30,14 @@ export function modelReaderOptions(model){
  const lightOnDark=['type-c','type-c-m09031d'].includes(model);
  return {extractSerial,allowUnlabelledSerial:samsung,lightOnDark,
   isConfident:attempts=>confidentPrintedReadings(attempts,{extractSerial,readingParts,minConfidence:samsung||['lg-24w','lg-32w'].includes(model)?80:70}),
+  isReadable:attempts=>attempts.some(item=>!!extractSerial(item.fullText||item.text||''))};
+}
+
+// Selo Anatel: the homologation number (HHHHH-AA-FFFFF) anywhere in the photo.
+export function anatelReaderOptions(){
+ const extractSerial=text=>extractAnatelNumber(text);
+ const readingParts=text=>{const number=extractSerial(text);return number?[number]:[];};
+ return {extractSerial,allowUnlabelledSerial:false,lightOnDark:false,
+  isConfident:attempts=>confidentPrintedReadings(attempts,{extractSerial,readingParts,minConfidence:80}),
   isReadable:attempts=>attempts.some(item=>!!extractSerial(item.fullText||item.text||''))};
 }
