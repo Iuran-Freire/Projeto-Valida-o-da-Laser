@@ -60,11 +60,3 @@ export function inspectAnatelNumbers(accepted, printed) {
   const first = positions.find((item) => !item.match);
   return { status: 'DIVERGENTE', expected, read, tab, positions, reason: `Número de homologação diferente do modelo: posição ${first.position} esperada ${first.expected}, lida ${first.read}. Confira o selo na peça.` };
 }
-
-// CSV of the seal stage (UTF-8 with BOM, ";"), cells guarded against formulas.
-export function anatelCsv(records, labelOf = (model) => model) {
-  const headings = ['ID', 'Data UTC', 'Data local', 'Inspetor', 'Turno', 'Modelo', 'Número do modelo', 'Número no selo', 'TAB do selo', 'Código 2D da peça', 'Resultado', 'Número editado', 'Confirmado', 'Motivo', 'Sincronização'];
-  const cell = (value) => '"' + String(value ?? '').replace(/^[\s]*[=+@-]/, (m) => "'" + m).replaceAll('"', '""') + '"';
-  const rows = records.map((r) => [r.id, r.date, new Date(r.date).toLocaleString('pt-BR'), r.inspector, r.shift || '', labelOf(r.model), r.codeSerial, r.printSerial, r.anatelTab, r.qr, r.status, r.printEdited ? 'sim' : 'não', r.confirmed ? 'sim' : 'não', r.reason, r.syncState]);
-  return '\ufeff' + [headings, ...rows].map((row) => row.map(cell).join(';')).join('\r\n');
-}

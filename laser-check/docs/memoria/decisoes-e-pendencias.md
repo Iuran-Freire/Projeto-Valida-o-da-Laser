@@ -6,6 +6,7 @@
 - Série Samsung sem rótulo/":" é aceita só com conferência visual.
 - 5↔S divergente segue DIVERGENTE (proposta de virar PENDENTE ficou para o dono decidir).
 - Polaridade por modelo: 15W VE branco (letra escura), Type C preto (letra clara).
+- CSV (18/11/2026, `shared/export/csv-export.mjs`): feito para abrir organizado no Excel. Uma linha por registro (quebras de linha viram espaço), colunas principais primeiro (Data, Hora, Inspetor, Turno, Modelo, Resultado, séries), valores em palavras (Coincide, Sim/Não, "1º turno (G)", Compartilhado). Códigos só com números saem como `="0123"` para o Excel não tirar o zero da frente nem virar 1,23E+16. Saíram do CSV os campos técnicos (Data UTC, regra, formato, origem do código, JSON das passagens do OCR): continuam no servidor e em "Ver detalhes".
 - Mudanças de teste vão para a branch `CL-Version`; a `main` está no commit `eb46a1c`.
 
 ## Histórico da branch `CL-Version`

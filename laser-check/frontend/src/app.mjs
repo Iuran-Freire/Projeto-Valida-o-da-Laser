@@ -12,7 +12,6 @@ import {
 import { createWorker } from "tesseract.js";
 import {
   compare,
-  csv,
   RULE,
   extractPrint,
 } from "../../shared/validation/compare.mjs";
@@ -30,12 +29,16 @@ import {
   ANATEL_RULE,
   ANATEL_SEALS,
   ANATEL_STAGE,
-  anatelCsv,
   anatelSealFor,
   extractAnatelNumber,
   extractAnatelTab,
   inspectAnatelSeal,
 } from "../../shared/models/anatel-seal.mjs";
+import {
+  anatelCsv,
+  csvFileName,
+  inspectionCsv,
+} from "../../shared/export/csv-export.mjs";
 import {
   READ_STEPS,
   STEP_TITLES,
@@ -3507,11 +3510,13 @@ $("#export").onclick = () => {
   $("#empty-history p").textContent = available.length
     ? "Altere a busca ou o filtro de resultado."
     : "Capture uma peça para registrar a primeira comparação.";
-  const blob = new Blob([csv(visible)], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob([inspectionCsv(visible)], {
+    type: "text/csv;charset=utf-8",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `valida-laser-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = csvFileName("valida-laser");
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
@@ -4243,13 +4248,13 @@ $("#anatel-confirmed").onchange = () => updateAnatel();
 $("#anatel-save").onclick = () => saveAnatel();
 $("#anatel-export").onclick = () => {
   const blob = new Blob(
-    [anatelCsv(anatelRecords(), (model) => getModelProfile(model).label)],
+    [anatelCsv(anatelRecords())],
     { type: "text/csv;charset=utf-8" },
   );
   const url = URL.createObjectURL(blob),
     link = document.createElement("a");
   link.href = url;
-  link.download = `valida-laser-selo-anatel-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = csvFileName("valida-laser-selo-anatel");
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
