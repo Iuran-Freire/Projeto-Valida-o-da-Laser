@@ -18,6 +18,7 @@ A recuperação entre eles fica em `ocr/reader-recovery.mjs` (tipos de falha: me
 - Primeira preparação do leitor principal (download): limite de **3 min**. Cada leitura: 60 s.
 - Samsung: o PP-OCR costuma quebrar "NÚMERO DE SÉRIE:" em pedaços ou perder os ":". A série `R37…` lida na foto é aceita mesmo assim (`samsungUnlabelledSample`), mas sempre com conferência visual. Leitura com rótulo completo não muda.
 - Código 2D lido num worker descartável (`capture/barcode-reader.mjs`), para liberar memória. Se falhar, lê na página como antes.
+- `focusAfterFirst` (só a aba do selo usa): a 2ª passada do leitor principal lê só a linha localizada na 1ª, ampliada, em vez da foto inteira de novo. Metade do tempo no selo. A laser não passa essa opção e segue igual. Detalhes em `selo-anatel.md`.
 - Painel de andamento: `frontend/src/reading-progress.mjs` traduz as mensagens técnicas em etapa, posição da linha de progresso e texto simples. Só mensagens que começam como andamento ("Lendo…", "Preparando leitor…", "Leitor alternativo…") mexem no painel.
 
 ## Testes com fotos reais

@@ -90,6 +90,8 @@ export function interpretProgress(message) {
       "Conferindo letras parecidas (I/1, 5/S)", 3);
   if (/lendo a linha da serie/.test(text))
     return counted("text", 0.55, 0.95, text, "Lendo a série impressa", 3);
+  if (/lendo o numero do selo/.test(text))
+    return counted("text", 0.55, 0.95, text, "Lendo o número do selo", 3);
   // Other products' messages are already plain language: keep them.
   const original = String(message).trim().replace(/…$/, ".");
   if (TEXT_WORDS.test(text)) return segment("text", 0.3, 0.55, 5, original);

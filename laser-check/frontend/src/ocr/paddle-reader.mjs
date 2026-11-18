@@ -51,7 +51,10 @@ export async function readPrintedSerial(source,region,onProgress,lightOnDark=fal
    const slow=setTimeout(()=>onProgress('Preparando leitor principal · na primeira vez o download pode levar alguns minutos…'),15000);
    let reader;
    try{reader=await engine();}finally{clearTimeout(slow);}
-   const primaryOptions=detailed?options:{allowUnlabelledSerial:options.allowUnlabelledSerial};
+   // focusAfterFirst (seal tab): the first pass locates the line, the next reads only that line, enlarged.
+   const primaryOptions=detailed?options:{allowUnlabelledSerial:options.allowUnlabelledSerial,
+    ...(options.focusAfterFirst?{focusAfterFirst:true,extractSerial:options.extractSerial}:{}),
+    ...(options.progressLabel?{progressLabel:options.progressLabel}:{})};
    try{return await readAttempts(reader,'PP-OCRv5_mobile_rec',source,region,onProgress,lightOnDark,detailed,primaryOptions,false,primarySide);}
    catch(error){
     await releasePrimary();
@@ -107,10 +110,10 @@ async function readAttempts(reader,model,source,region,onProgress,lightOnDark,de
  if(detailed)variants.push('caracteres-contraste','caracteres-nitidez');
  let focused=null;
  for(const variant of variants){
-  const currentRegion=(compatible||detailed&&attempts.length>=2)&&focused?focused:region;
-  onProgress((variant.startsWith('caracteres-')?'Leitura detalhada · conferindo I/1 e 5/S':'Lendo a linha da série')+' · '+(attempts.length+1)+' de '+variants.length+(currentRegion===focused?' · ampliada':'')+'…');
+  const currentRegion=(compatible||detailed&&attempts.length>=2||options.focusAfterFirst&&attempts.length>=1)&&focused?focused:region;
+  onProgress((variant.startsWith('caracteres-')?'Leitura detalhada · conferindo I/1 e 5/S':options.progressLabel||'Lendo a linha da série')+' · '+(attempts.length+1)+' de '+variants.length+(currentRegion===focused?' · ampliada':'')+'…');
   const input=cropCanvas(source,currentRegion,variant,lightOnDark,compatible&&currentRegion===focused?4:2,maxSide);
-  try{const [result]=await reader.predict(input,{...(compatible?{singleLine:currentRegion===focused&&variant!=='normalizado'}:{}),textRecScoreThresh:0,textDetLimitSideLen:maxSide,textDetLimitType:'max',textDetBoxThresh:.4});let attempt={...sample(result.items,model,variant+(currentRegion===focused?'-ampliada':''),currentRegion),inputWidth:input.width};if(options.allowUnlabelledSerial)attempt=compatible?samsungSerialSample(attempt):samsungUnlabelledSample(attempt);if((detailed||compatible)&&!focused)focused=serialRegion(attempt,currentRegion,input.width,source,{...options,...(compatible&&options.allowUnlabelledSerial?{extractSerial:samsungSerialCandidate}:{}),wholeLine:compatible});attempts.push(attempt);}
+  try{const [result]=await reader.predict(input,{...(compatible?{singleLine:currentRegion===focused&&variant!=='normalizado'}:{}),textRecScoreThresh:0,textDetLimitSideLen:maxSide,textDetLimitType:'max',textDetBoxThresh:.4});let attempt={...sample(result.items,model,variant+(currentRegion===focused?'-ampliada':''),currentRegion),inputWidth:input.width};if(options.allowUnlabelledSerial)attempt=compatible?samsungSerialSample(attempt):samsungUnlabelledSample(attempt);if((detailed||compatible||options.focusAfterFirst)&&!focused)focused=serialRegion(attempt,currentRegion,input.width,source,{...options,...(compatible&&options.allowUnlabelledSerial?{extractSerial:samsungSerialCandidate}:{}),wholeLine:compatible});attempts.push(attempt);}
   finally{input.width=0;input.height=0;await new Promise(resolve=>setTimeout(resolve,20));}
  }
  return detailed?markGlyphReview(attempts,options.extractSerial||(text=>extractPrint(text).serial)):attempts;

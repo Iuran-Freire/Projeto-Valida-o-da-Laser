@@ -123,3 +123,6 @@ main{padding-bottom:120px}.floating-new-reading{position:fixed;left:18px;bottom:
 #anatel-number{font-family:Consolas,monospace;letter-spacing:.06em}
 #anatel-comparison{margin-bottom:16px}
 .capture-actions label.disabled{opacity:.45;pointer-events:none}
+/* The seal photo has no selection tool: a swipe over it scrolls the page, a tap enlarges it. */
+.viewfinder #anatel-photo{touch-action:pan-y pinch-zoom;cursor:zoom-in}
+#anatel-open-photo{width:100%;margin-top:10px}

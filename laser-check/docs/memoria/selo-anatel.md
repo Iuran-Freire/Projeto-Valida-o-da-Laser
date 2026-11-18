@@ -19,6 +19,18 @@ Cada modelo aceita uma **lista** de números (um modelo pode ter mais de um cert
 - Começamos só pelo 15W VE (decisão do dono, 13/11/2026). Type C e os demais modelos ainda não têm número: a aba bloqueia a foto e avisa. Para cadastrar, incluir o modelo em `ANATEL_SEALS`.
 - Houve uma amostra de selo **14099-21-04952** (TAB 079329356) cujo modelo ficou indefinido (primeiro dito Type C LowStandBy): não está cadastrada.
 
+## Leitura (otimizada em 18/11/2026)
+- 1ª passada: o leitor principal lê a foto inteira e localiza a linha do número (`extractAnatelNumber`).
+- 2ª passada: lê **só essa linha, ampliada** (opção `focusAfterFirst`, usada apenas pelo selo; a laser não muda). Se a 1ª não achou o número, a 2ª lê a foto inteira de novo, como antes.
+- O TAB vem da 1ª passada (foto inteira).
+- Tempo no computador de teste (leitor já carregado): foto da peça inteira 7,7–8,1 s → **3,8–4,4 s**; foto de perto 3,0 s → 1,8 s. Resultados iguais aos de antes.
+- O painel de andamento mostra "Lendo o número do selo · 1 de 2 / 2 de 2".
+
+## Foto do selo no celular
+- Arrastar o dedo sobre a foto **rola a página** (antes a foto travava a rolagem, como a da laser em modo de seleção).
+- **Tocar na foto** ou no botão "Ampliar foto para conferir" abre a foto ampliada do selo: dois dedos ampliam, um dedo move. Durante a leitura o botão fica desativado.
+- A foto do selo aberta pelo histórico aparece com o título "Foto do selo".
+
 ## Regras
 - Número igual ao do modelo → **COINCIDE**; diferente → **DIVERGENTE**; não lido → **PENDENTE** (o inspetor pode digitar o número conferindo a foto; a edição fica registrada).
 - Letras no lugar de dígitos não são "corrigidas": a leitura fica pendente.
@@ -27,3 +39,4 @@ Cada modelo aceita uma **lista** de números (um modelo pode ter mais de um cert
 
 ## Testes
 `tests/anatel-seal.test.mjs` (regra), `tests/worker.test.mjs` (servidor). Testado de ponta a ponta como iPhone 11 com foto real de peça 15W VE na mão: coincide (03340-19-04952, TAB 405134148) e fica ligado à peça R37LBCG5GF2IPA pelo 2D; selo 14099-21-04952 no 15W VE dá divergente; Type C e OPPO bloqueados.
+Toque e rolagem testados como iPhone 11 (`selo-toque`): arrastar sobre a foto rola ~290 px (com o bloqueio antigo, 0 px), tocar abre a foto, dois dedos ampliam (340 → 1698 px).

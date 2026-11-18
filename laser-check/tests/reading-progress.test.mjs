@@ -58,3 +58,11 @@ test('tempo decorrido em minutos e segundos',()=>{
  assert.equal(formatElapsed(0),'0:00');assert.equal(formatElapsed(7400),'0:07');assert.equal(formatElapsed(83000),'1:23');
  assert.deepEqual(READ_STEPS,['photo','code','text','review']);
 });
+
+test('selo Anatel: a leitura do número aparece com o nome do selo',()=>{
+ for(const text of ['Localizando e reconhecendo o número do selo…','Lendo o número do selo · 1 de 2…','Lendo o número do selo · 2 de 2 · ampliada…'])
+  assert.equal(step(text),'text',text);
+ const first=interpretProgress('Lendo o número do selo · 1 de 2…'),second=interpretProgress('Lendo o número do selo · 2 de 2 · ampliada…');
+ assert.equal(second.detail,'Lendo o número do selo · 2 de 2.');
+ assert.ok(first.to<=second.from+1e-9&&second.from>first.from); // the line keeps moving forward
+});

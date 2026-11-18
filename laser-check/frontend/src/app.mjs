@@ -3160,8 +3160,12 @@ async function showPhoto(record, kind = "photo") {
   image.hidden = true;
   image.removeAttribute("src");
   resetPhotoZoom();
+  const seal = record.stage === ANATEL_STAGE;
+  $("#photo-dialog h2").textContent = seal ? "Foto do selo" : "Foto da peça";
   hint.textContent =
-    (kind === "barcode"
+    (seal
+      ? "Foto do selo Anatel. "
+      : kind === "barcode"
       ? "Foto da etiqueta lateral. "
       : record.model === LG_32W_ID
         ? "Foto da etiqueta do corpo. "
@@ -3861,6 +3865,7 @@ function resetAnatel() {
   anatelConfidence = null;
   anatelCanvas.hidden = true;
   $("#anatel-empty").hidden = false;
+  $("#anatel-open-photo").hidden = true;
   $("#anatel-number").value = "";
   $("#anatel-confirmed").checked = false;
   $("#anatel-save-message").textContent = "";
@@ -3889,6 +3894,7 @@ function updateAnatel() {
   $("#anatel-number").disabled = busy || !hasPhoto || anatelSaved;
   $("#anatel-confirmed").disabled =
     busy || !hasPhoto || anatelSaving || anatelSaved;
+  $("#anatel-open-photo").disabled = anatelReading || !hasPhoto;
   const box = $("#anatel-result");
   const show = (style, symbol, title, text) => {
     box.className = "result " + style;
@@ -3992,6 +3998,7 @@ async function loadAnatelPhoto(event) {
     );
     anatelCanvas.hidden = false;
     $("#anatel-empty").hidden = true;
+    $("#anatel-open-photo").hidden = false;
   } catch (error) {
     anatelReading = false;
     setReadStage("error", "Confira a foto e tente novamente.");
@@ -4024,7 +4031,13 @@ async function readAnatel() {
       anatelCode = "";
     }
     anatelProgress("Localizando e reconhecendo o número do selo…");
-    const options = anatelReaderOptions();
+    // First pass finds the number on the whole photo; the second reads only
+    // that line, enlarged (faster and sharper than reading the whole label twice).
+    const options = {
+      ...anatelReaderOptions(),
+      focusAfterFirst: true,
+      progressLabel: "Lendo o número do selo",
+    };
     anatelAttempts = await readPrintedSerial(
       anatelCanvas,
       { x: 0, y: 0, w: anatelCanvas.width, h: anatelCanvas.height },
@@ -4189,6 +4202,30 @@ function renderAnatelHistory() {
     body.append(tr);
   }
 }
+// Tap on the photo (or the button) opens it enlarged: two fingers zoom, one moves.
+async function openAnatelPhoto() {
+  if (!anatelBase || anatelReading) return;
+  if (photoUrl) {
+    URL.revokeObjectURL(photoUrl);
+    photoUrl = null;
+  }
+  const blob = await jpegFromImageData(anatelBase, 0.9);
+  if (!blob) return;
+  photoUrl = URL.createObjectURL(blob);
+  const image = $("#record-photo");
+  image.onload = () => resetPhotoZoom();
+  image.src = photoUrl;
+  image.hidden = false;
+  $("#photo-dialog h2").textContent = "Foto do selo";
+  $("#photo-hint").textContent =
+    "Use dois dedos para ampliar e um dedo para mover. Confira o número da linha de cima do selo.";
+  $("#photo-dialog").showModal();
+}
+anatelCanvas.onclick = openAnatelPhoto;
+$("#anatel-open-photo").onclick = openAnatelPhoto;
+$("#photo-dialog").addEventListener("close", () => {
+  $("#photo-dialog h2").textContent = "Foto da peça";
+});
 $("#anatel-native-file").onchange = loadAnatelPhoto;
 $("#anatel-file").onchange = loadAnatelPhoto;
 $("#anatel-native-trigger").onkeydown = (event) => {
