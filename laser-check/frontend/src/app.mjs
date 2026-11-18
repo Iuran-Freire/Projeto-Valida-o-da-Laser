@@ -169,6 +169,13 @@ const canvas = $("#photo"),
 // Selo Anatel (separate stage): photo, reading and the number read.
 const anatelCanvas = $("#anatel-photo"),
   anatelCtx = anatelCanvas.getContext("2d", { willReadFrequently: true });
+// Each tab keeps its own model: the seal tab lists only models with a seal number.
+let activeTab = "inspection",
+  anatelModel = Object.keys(ANATEL_SEALS)[0] || DEFAULT_MODEL;
+const allModelOptions = [...$("#model-select").options].map((option) => [
+  option.value,
+  option.textContent,
+]);
 let anatelBase = null,
   anatelReading = false,
   anatelSaving = false,
@@ -3520,26 +3527,48 @@ function renderInspectorOptions() {
     localStorage.removeItem("laser-shift");
   }
 }
-function showInspector() {
-  renderInspectorOptions();
-  $("#model-select").value = selectedModel;
-  for (const choice of document.querySelectorAll('input[name="shift"]'))
-    choice.checked = choice.value === inspectorShift;
+const activeModel = () => (activeTab === "anatel" ? anatelModel : selectedModel);
+function renderModelOptions() {
+  const select = $("#model-select"),
+    options =
+      activeTab === "anatel"
+        ? allModelOptions.filter(([value]) => anatelSealFor(value))
+        : allModelOptions;
+  select.replaceChildren(...options.map(([value, label]) => new Option(label, value)));
+  select.value = activeModel();
+}
+function updateOperatorHint() {
   $("#inspector-hint").textContent =
     inspector && inspectorShift
-      ? `Novos registros: ${inspector} · ${getModelProfile(selectedModel).label} · ${SHIFT_LABELS[inspectorShift]} (${inspectorShift}).`
+      ? `Novos registros: ${inspector} · ${activeTab === "anatel" ? "Selo Anatel · " : ""}${getModelProfile(activeModel()).label} · ${SHIFT_LABELS[inspectorShift]} (${inspectorShift}).`
       : inspectors.some((item) => item.active)
         ? "Escolha um inspetor cadastrado e confirme o turno antes de registrar uma peça."
         : "Nenhum inspetor ativo. Cadastre um nome na aba Gestão de inspetores.";
+}
+function showInspector() {
+  renderInspectorOptions();
+  renderModelOptions();
+  for (const choice of document.querySelectorAll('input[name="shift"]'))
+    choice.checked = choice.value === inspectorShift;
+  updateOperatorHint();
   update();
   renderHistory();
 }
 $("#model-select").onchange = () => {
   const next = $("#model-select").value;
+  if (activeTab === "anatel") {
+    if (!anatelSealFor(next) || next === anatelModel) return;
+    anatelModel = next;
+    try {
+      localStorage.setItem("laser-anatel-model", anatelModel);
+    } catch {}
+    resetAnatel();
+    updateOperatorHint();
+    return;
+  }
   if (!isModelCode(next) || next === selectedModel) return;
   selectedModel = next;
   localStorage.setItem("laser-model", selectedModel);
-  resetAnatel();
   dualVisualPhoto = null;
   dualLabelPhoto = null;
   photoBase = null;
@@ -3839,11 +3868,11 @@ function resetAnatel() {
   updateAnatel();
 }
 function updateAnatel() {
-  const seal = anatelSealFor(selectedModel),
-    label = getModelProfile(selectedModel).label,
+  const seal = anatelSealFor(anatelModel),
+    label = getModelProfile(anatelModel).label,
     hasPhoto = !!anatelBase,
     number = $("#anatel-number").value.trim(),
-    result = inspectAnatelSeal(selectedModel, number);
+    result = inspectAnatelSeal(anatelModel, number);
   $("#anatel-model").textContent = seal
     ? `${label} · número de homologação do modelo: ${seal.numbers.join(" ou ")}`
     : `${label} ainda não tem selo Anatel cadastrado. Modelos com selo: ${Object.keys(ANATEL_SEALS)
@@ -3932,7 +3961,7 @@ function updateAnatel() {
 async function loadAnatelPhoto(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
-  if (!file || busy || !anatelSealFor(selectedModel)) return;
+  if (!file || busy || !anatelSealFor(anatelModel)) return;
   resetAnatel();
   anatelSource = event.target.id === "anatel-native-file" ? "câmera do celular" : "foto";
   anatelReading = true;
@@ -4043,7 +4072,7 @@ async function readAnatel() {
   }
 }
 async function saveAnatel() {
-  const seal = anatelSealFor(selectedModel);
+  const seal = anatelSealFor(anatelModel);
   if (
     !seal ||
     busy ||
@@ -4057,13 +4086,13 @@ async function saveAnatel() {
   )
     return;
   const number = $("#anatel-number").value.trim(),
-    result = inspectAnatelSeal(selectedModel, number);
+    result = inspectAnatelSeal(anatelModel, number);
   const record = {
     id: crypto.randomUUID(),
     date: new Date().toISOString(),
     inspector,
     shift: inspectorShift,
-    model: selectedModel,
+    model: anatelModel,
     stage: ANATEL_STAGE,
     syncState: "pending",
     photoPresent: true,
@@ -4206,6 +4235,11 @@ function showTab(name) {
   try {
     localStorage.setItem("laser-tab", anatel ? "anatel" : "inspection");
   } catch {}
+  if (!management) {
+    activeTab = anatel ? "anatel" : "inspection";
+    renderModelOptions();
+    updateOperatorHint();
+  }
   if (anatel) updateAnatel();
   if (management) {
     $("#manager-lock").hidden = Boolean(managerPassword);
@@ -4237,6 +4271,10 @@ async function init() {
   selectedModel = localStorage.getItem("laser-model") || DEFAULT_MODEL;
   if (!isModelCode(selectedModel)) selectedModel = DEFAULT_MODEL;
   if (!isShiftCode(inspectorShift)) inspectorShift = "";
+  try {
+    const savedSealModel = localStorage.getItem("laser-anatel-model");
+    if (anatelSealFor(savedSealModel)) anatelModel = savedSealModel;
+  } catch {}
   setModelView();
   try {
     if (localStorage.getItem("laser-tab") === "anatel") showTab("anatel");

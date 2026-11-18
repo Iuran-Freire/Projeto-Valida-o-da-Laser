@@ -2,6 +2,8 @@
 
 Etapa **posterior** à validação da laser na linha, por isso é uma aba separada ("Selo Anatel"), com histórico e CSV próprios. O painel de inspetor, modelo e turno é compartilhado com a aba Inspeção.
 
+- A lista de **modelos** depende da aba: na aba do selo aparecem **só os modelos com número cadastrado**; na Inspeção, todos. Cada aba guarda o seu modelo (`laser-model` e `laser-anatel-model` no aparelho), então trocar o modelo do selo não apaga a leitura da laser.
+
 ## O que se valida
 - **Número de homologação** (linha de cima do selo, formato `HHHHH-AA-FFFFF`): é o mesmo para todas as peças de um modelo. É o que o app compara, posição por posição.
 - **TAB** (linha de baixo, 9 dígitos): muda de selo para selo. Só é **registrado**, não validado.
@@ -12,7 +14,7 @@ Cada modelo aceita uma **lista** de números (um modelo pode ter mais de um cert
 
 | Modelo | Número(s) aceito(s) | Origem |
 |---|---|---|
-| T09001T · 15W VE (`15w-ve`) | 03340-19-04952 | Foto de peça 15W VE (EP-TA200I) enviada pelo dono, 13/11/2026; confirmado em duas peças (TAB 405134148 e 405066215) |
+| M09020D · 15W VE (`15w-ve`) | 03340-19-04952 | Foto de peça 15W VE (EP-TA200I) enviada pelo dono, 13/11/2026; confirmado em duas peças (TAB 405134148 e 405066215) |
 
 - Começamos só pelo 15W VE (decisão do dono, 13/11/2026). Type C e os demais modelos ainda não têm número: a aba bloqueia a foto e avisa. Para cadastrar, incluir o modelo em `ANATEL_SEALS`.
 - Houve uma amostra de selo **14099-21-04952** (TAB 079329356) cujo modelo ficou indefinido (primeiro dito Type C LowStandBy): não está cadastrada.

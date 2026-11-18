@@ -4,7 +4,7 @@ export const DEFAULT_MODEL='type-c';
 export const MODEL_PROFILES=Object.freeze({
   'type-c':Object.freeze({id:'type-c',label:'M09030D - 15W Type C LowStandBy',secCode:PROFILE_PART,version:'type-c-m09030d-v3',layout:'below-left',fixed:Object.freeze({0:'R',1:'3',2:'7',10:'2',11:'I',12:'P',13:'A'})}),
   'type-c-m09031d':Object.freeze({id:'type-c-m09031d',label:'M09031D - 15W Type C',secCode:PROFILE_PART,version:'type-c-m09031d-v1',layout:'below-left',fixed:Object.freeze({0:'R',1:'3',2:'7',10:'1',11:'I',12:'P',13:'A'})}),
-  '15w-ve':Object.freeze({id:'15w-ve',label:'T09001T - 15W VE',secCode:'GH44-03086A',version:'15w-ve-v1',layout:'above',fixed:Object.freeze({0:'R',1:'3',2:'7',10:'2',11:'I',12:'P',13:'A'})})
+  '15w-ve':Object.freeze({id:'15w-ve',label:'M09020D - 15W VE',secCode:'GH44-03086A',version:'15w-ve-v1',layout:'above',fixed:Object.freeze({0:'R',1:'3',2:'7',10:'2',11:'I',12:'P',13:'A'})})
   ,'oppo-45w':Object.freeze({id:'oppo-45w',label:'P38000P - OPPO 45W',secCode:'611401000196',version:'oppo-45w-v1',layout:'full',kind:'datamatrix',fixed:Object.freeze({})})
   ,'frecom-dm-24w':Object.freeze({id:'frecom-dm-24w',label:'33K0009 - Frecom 24W',secCode:'',version:'frecom-dm-24w-v1',layout:'full',kind:'datamatrix',fixed:Object.freeze({})})
   ,'frecom-24w':Object.freeze({id:'frecom-24w',label:'33K0008 - Frecom 24W',secCode:'',version:'frecom-24w-v1',layout:'full',kind:'barcode',fixed:Object.freeze({})})
